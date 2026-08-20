@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="Generator" content="Hancom Office HWP" />
+<title>주간보고 취합서</title>
+<style>
+    @page {
+        size: A4 portrait;
+        margin: 20mm;
+    }
+    body {
+        font-family: '함초롬바탕', '맑은 고딕', 'Batang', sans-serif;
+        font-size: 10pt;
+        color: #000000;
+        line-height: 1.6;
+    }
+    h1 {
+        text-align: center;
+        font-size: 18pt;
+        font-weight: bold;
+        margin-bottom: 20px;
+        letter-spacing: 2px;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        margin-top: 10px;
+    }
+    th {
+        background-color: #F2F4F7;
+        border: 1px solid #000000;
+        padding: 10px;
+        font-size: 11pt;
+        font-weight: bold;
+        text-align: center;
+        width: 50%;
+    }
+    td {
+        border: 1px solid #000000;
+        padding: 12px;
+        vertical-align: top;
+        word-break: break-all;
+    }
+    .team-header {
+        font-weight: bold;
+        color: #004085;
+        font-size: 11pt;
+        margin-bottom: 8px;
+        display: block;
+    }
+    .item-title {
+        font-weight: bold;
+        color: #111827;
+        margin-top: 8px;
+        margin-bottom: 4px;
+    }
+    .item-detail {
+        color: #374151;
+        margin-left: 5px;
+        margin-top: 2px;
+        margin-bottom: 2px;
+    }
+    .empty-text {
+        color: #888888;
+        font-style: italic;
+    }
+</style>
+</head>
+<body>
+
+<h1>주 간 보 고 서</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>이번주 실적</th>
+            <th>다음주 계획</th>
+        </tr>
+    </thead>
+    <tbody>
+
+<tr>
+<td>
+<span class="team-header">[ 개발팀 ]</span>
+<div class="item-title">주간보고 취합 서비스 1차 개발</div>
+<div class="item-detail">- 팀별 주간보고 웹 등록 폼 구축 완료</div>
+<div class="item-detail">- 2열 표 구조의 한글(HWPX) 자동 생성 엔진 연동</div>
+<div style="height:6px;"></div>
+</td>
+<td>
+<span class="team-header">[ 개발팀 ]</span>
+<div class="item-title">UI 및 가독성 개선 작업</div>
+<div class="item-detail">- 사용자 피드백 반영한 서식 및 줄바꿈 여백 조절</div>
+<div class="item-detail">- 한글 문서 서식 템플릿 고도화</div>
+<div style="height:6px;"></div>
+</td>
+</tr>
+<tr>
+<td>
+<span class="team-header">[ 기획팀 ]</span>
+<div class="item-title">주간 보고 프로세스 표준화</div>
+<div class="item-detail">- 팀별 입력 서식 가이드 배포</div>
+<div class="item-detail">- 취합 서식 자동화 요건 정의 완료</div>
+<div style="height:6px;"></div>
+</td>
+<td>
+<span class="team-header">[ 기획팀 ]</span>
+<div class="item-title">운영 가이드북 작성</div>
+<div class="item-detail">- 주간보고 서비스 사용자 매뉴얼 작성</div>
+<div class="item-detail">- 전사 부서 대상 모니터링 수립</div>
+<div style="height:6px;"></div>
+</td>
+</tr>
+<tr>
+<td>
+<span class="team-header">[ 디지털·AI전략팀 ]</span>
+<div class="item-title">AX 성숙도 진단 계획 수립 </div>
+<div class="item-detail">- 7개 영역(26문항) 진단 후 결과 보고</div>
+<div style="height:6px;"></div>
+<div class="item-title">데이터기반행정 평가 대응</div>
+<div class="item-detail">- 기관공유시스템 도입 테스트 실시</div>
+<div style="height:6px;"></div>
+<div class="item-title">데이터기반행정 평가 대응</div>
+<div class="item-detail">- 기관공유시스템 도입 테스트 실시</div>
+<div style="height:6px;"></div>
+</td>
+<td>
+<span class="team-header">[ 디지털·AI전략팀 ]</span>
+<div class="item-title">데이터기반행정 평가 결과보고</div>
+<div class="item-detail">- 기관공유시스템 도입 테스트 완료 보고서</div>
+<div style="height:6px;"></div>
+</td>
+</tr>
+
+    </tbody>
+</table>
+
+</body>
+</html>
