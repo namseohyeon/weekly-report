@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+streamlit-output.log
+streamlit-error.log
+reviewed_files/
+data/history/

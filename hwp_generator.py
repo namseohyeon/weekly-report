@@ -1,5 +1,7 @@
 import os
 import zipfile
+import datetime
+from zoneinfo import ZoneInfo
 from xml.sax.saxutils import escape
 import docx
 from docx.shared import Pt, Inches, RGBColor
@@ -23,12 +25,15 @@ class HWPXGenerator:
         모든 한글(Hancom Office) 버전에서 100% 오류 없이 즉시 열리는 HWP 문서 생성
         (한글 전용 메타 태그가 포함된 HTML/MIME HWP 포맷)
         """
-        html_content = self._build_hwp_html_content(teams_data)
+        html_content = self.generate_html_document(teams_data)
         
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(html_content)
             
         return output_path
+
+    def generate_hwp_bytes(self, teams_data):
+        return self.generate_html_document(teams_data).encode("utf-8")
 
     def _build_hwp_html_content(self, teams_data):
         """
@@ -43,8 +48,8 @@ class HWPXGenerator:
 <title>주간보고 취합서</title>
 <style>
     @page {
-        size: A4 portrait;
-        margin: 20mm;
+        size: A4 landscape;
+        margin: 15mm;
     }
     body {
         font-family: '함초롬바탕', '맑은 고딕', 'Batang', sans-serif;
@@ -426,5 +431,149 @@ class HWPXGenerator:
         doc.save(output_path)
         return output_path
 
+    def _build_report_layout(self, teams_data):
+        today = datetime.datetime.now(ZoneInfo("Asia/Seoul")).date()
+        monday = today - datetime.timedelta(days=today.weekday())
+        friday = monday + datetime.timedelta(days=4)
+        next_monday = monday + datetime.timedelta(days=7)
+        next_friday = friday + datetime.timedelta(days=7)
+
+        def date_range(start, end):
+            return f"{start.month}.{start.day}.~{end.month}.{end.day}."
+
+        def line_weight(team):
+            def category_lines(category):
+                lines = 1
+                for entry in team.get(category, []):
+                    lines += bool(entry.get("title", "").strip())
+                    lines += len([d for d in entry.get("details", []) if d.strip()])
+                return lines
+            return max(category_lines("this_week"), category_lines("next_week")) + 1
+
+        # 한 팀의 좌우 셀은 항상 같은 페이지/행에 둔다. 내용량 기준으로 다음 페이지에 넘긴다.
+        pages = []
+        current_page = []
+        used_lines = 0
+        for team in teams_data:
+            weight = line_weight(team)
+            if current_page and used_lines + weight > 24:
+                pages.append(current_page)
+                current_page = []
+                used_lines = 0
+            current_page.append(team)
+            used_lines += weight
+        if current_page or not pages:
+            pages.append(current_page)
+
+        def render_entries(entries, include_date=False):
+            parts = []
+            for entry in entries:
+                title = escape(entry.get("title", "").strip())
+                if title:
+                    if include_date and entry.get("performance_date"):
+                        try:
+                            completed = datetime.date.fromisoformat(entry["performance_date"])
+                            title += f"({completed.month}.{completed.day})"
+                        except (TypeError, ValueError):
+                            pass
+                    parts.append(f'<div class="report-title">○&nbsp; {title}</div>')
+                for detail in entry.get("details", []):
+                    detail = escape(detail.strip().lstrip("- "))
+                    if detail:
+                        parts.append(f'<div class="report-detail">-&nbsp; {detail}</div>')
+            return "".join(parts) or '<div class="empty-report">-</div>'
+
+        def render_rows(page_teams):
+            rows = []
+            for team in page_teams:
+                team_name = escape(team.get("team_name", ""))
+                left = render_entries(team.get("this_week", []), include_date=True)
+                right = render_entries(team.get("next_week", []))
+                rows.append(
+                    '<tr class="team-row">'
+                    f'<td><div class="team-name">&lt;{team_name}&gt;</div>{left}</td>'
+                    f'<td><div class="team-name">&lt;{team_name}&gt;</div>{right}</td>'
+                    '</tr>'
+                )
+            return "".join(rows) or '<tr class="team-row"><td></td><td></td></tr>'
+
+        page_html = []
+        for page_index, page_teams in enumerate(pages):
+            title = '<div class="company-name">AI혁신처</div>' if page_index == 0 else ''
+            page_class = "first-page" if page_index == 0 else "continuation-page"
+            page_html.append(f'''
+<section class="weekly-paper {page_class}">
+  {title}
+  <table class="report-table">
+    <thead><tr>
+      <th>&lt; 이번주 실적 &gt; {date_range(monday, friday)}</th>
+      <th>&lt; 다음주 계획 &gt; {date_range(next_monday, next_friday)}</th>
+    </tr></thead>
+    <tbody>{render_rows(page_teams)}</tbody>
+  </table>
+</section>''')
+
+        return f'''
+<style>
+    @page Section1 {{
+        size: 841.9pt 595.3pt;
+        margin: 25.5pt 11.3pt 34pt 11.3pt;
+        mso-page-orientation: landscape;
+    }}
+    @page {{
+        size: 297mm 210mm;
+        margin: 0;
+    }}
+    .Section1 {{ page: Section1; }}
+    .weekly-document {{ background: #eef1f5; padding: 12px 0; }}
+    .weekly-paper {{
+        width: 297mm; height: 210mm; max-width: 100%; margin: 0 auto 18px;
+        padding: 9mm 4mm 12mm; overflow: hidden;
+        box-sizing: border-box; background: #fff; color: #000;
+        font-family: "함초롬바탕", "바탕", serif;
+        page-break-after: always;
+    }}
+    .weekly-paper:last-child {{ page-break-after: auto; }}
+    .company-name {{
+        width: 54mm; margin: 0 auto 2.5mm; padding-bottom: 1mm;
+        border-bottom: 1px solid #000; text-align: center;
+        font-size: 20pt; line-height: 1; font-weight: 700; letter-spacing: 3mm;
+    }}
+    .report-table {{ width: 100%; height: calc(100% - 14mm); border-collapse: collapse; table-layout: fixed; }}
+    .continuation-page .report-table {{ height: 100%; }}
+    .report-table th, .report-table td {{ border: 1px solid #111; }}
+    .report-table th {{ height: 10mm; padding: 0; text-align: center; font-size: 14pt; font-weight: 700; }}
+    .report-table tbody td {{ border-top-color: transparent; border-bottom-color: transparent; }}
+    .report-table tbody tr:last-child td {{ border-bottom-color: #111; }}
+    .report-table td {{
+        width: 50%; padding: 4mm 2.5mm; vertical-align: top;
+        font-family: "휴먼명조", "Human MyungJo", "바탕", serif;
+        font-size: 14pt; line-height: 1.7;
+    }}
+    .team-row {{ break-inside: avoid; page-break-inside: avoid; }}
+    .team-name {{ font-weight: 700; margin-bottom: 1mm; }}
+    .report-title {{ font-weight: 700; padding-left: 1mm; }}
+    .report-detail {{
+        padding-left: 6mm; font-weight: 400;
+        font-family: "한양중고딕", "HYGothic-Medium", "맑은 고딕", sans-serif;
+        font-size: 12pt;
+    }}
+    .empty-report {{
+        color: #777; font-family: "한양중고딕", "HYGothic-Medium", "맑은 고딕", sans-serif;
+        font-size: 12pt;
+    }}
+    @media print {{
+        .weekly-document {{ background: #fff; padding: 0; }}
+        .weekly-paper {{ max-width: none; margin: 0; }}
+    }}
+</style>
+<div class="weekly-document Section1">{"".join(page_html)}</div>'''
+
     def generate_html_preview(self, teams_data):
-        return self._build_hwp_html_content(teams_data)
+        return self._build_report_layout(teams_data)
+
+    def generate_html_document(self, teams_data):
+        return f'''<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="Generator" content="Hancom Office HWP">
+<title>AI혁신처 주간 실적 및 계획</title></head>
+<body style="margin:0">{self._build_report_layout(teams_data)}</body></html>'''
