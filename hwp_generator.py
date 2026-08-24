@@ -480,7 +480,7 @@ class HWPXGenerator:
                 for detail in entry.get("details", []):
                     detail = escape(detail.strip().lstrip("- "))
                     if detail:
-                        parts.append(f'<div class="report-detail">-&nbsp; {detail}</div>')
+                        parts.append(f'<div class="report-detail">&nbsp;&nbsp;-&nbsp; {detail}</div>')
             return "".join(parts) or '<div class="empty-report">-</div>'
 
         def render_rows(page_teams):
@@ -541,6 +541,14 @@ class HWPXGenerator:
     }}
     .report-table {{ width: 100%; height: calc(100% - 14mm); border-collapse: collapse; table-layout: fixed; }}
     .continuation-page .report-table {{ height: 100%; }}
+    .report-table {{ display: flex; flex-direction: column; }}
+    .report-table thead {{ display: block; flex: 0 0 auto; }}
+    .report-table thead tr, .report-table .team-row {{
+        display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }}
+    .report-table tbody {{ display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }}
+    .report-table .team-row {{ flex: 0 0 auto; }}
+    .report-table .team-row:last-child {{ flex: 1 1 auto; }}
     .report-table th, .report-table td {{ border: 1px solid #111; }}
     .report-table th {{ height: 10mm; padding: 0; text-align: center; font-size: 14pt; font-weight: 700; }}
     .report-table tbody td {{ border-top-color: transparent; border-bottom-color: transparent; }}
@@ -550,16 +558,17 @@ class HWPXGenerator:
         font-family: "휴먼명조", "Human MyungJo", "바탕", serif;
         font-size: 14pt; line-height: 1.7;
     }}
+    .report-table th, .report-table td {{ width: auto; min-width: 0; }}
     .team-row {{ break-inside: avoid; page-break-inside: avoid; }}
     .team-name {{ font-weight: 700; margin-bottom: 1mm; }}
     .report-title {{ font-weight: 700; padding-left: 1mm; }}
     .report-detail {{
-        padding-left: 6mm; font-weight: 400;
+        padding-left: 1mm; font-weight: 400;
         font-family: "한양중고딕", "HYGothic-Medium", "맑은 고딕", sans-serif;
         font-size: 12pt;
     }}
     .empty-report {{
-        color: #777; font-family: "한양중고딕", "HYGothic-Medium", "맑은 고딕", sans-serif;
+        color: #777; font-family: "휴먼명조", "Human MyungJo", "바탕", serif;
         font-size: 12pt;
     }}
     @media print {{

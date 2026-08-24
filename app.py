@@ -6,6 +6,9 @@ import importlib
 import hwp_generator
 importlib.reload(hwp_generator)
 from hwp_generator import HWPXGenerator
+import dynamic_hwpx_generator
+importlib.reload(dynamic_hwpx_generator)
+from dynamic_hwpx_generator import generate_dynamic_hwpx_bytes
 
 # 페이지 구성 설정
 st.set_page_config(
@@ -31,6 +34,7 @@ def save_data(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
     # 입력 내용이 바뀌면 이전에 생성한 문서는 더 이상 최신 문서가 아니다.
     st.session_state.pop("generated_hwp", None)
+    st.session_state.pop("generated_hwp_key", None)
 
 def parse_saved_date(value):
     if not value:
@@ -102,6 +106,10 @@ show_queued_feedback()
 total_teams = len(st.session_state["reports_data"])
 total_this = sum(len(t.get("this_week", [])) for t in st.session_state["reports_data"])
 total_next = sum(len(t.get("next_week", [])) for t in st.session_state["reports_data"])
+active_report_teams = [
+    team for team in st.session_state["reports_data"]
+    if team.get("this_week") or team.get("next_week")
+]
 missing_performance_dates = sum(
     1
     for team in st.session_state["reports_data"]
@@ -278,7 +286,13 @@ with tab2:
     else:
         for idx, team in enumerate(st.session_state["reports_data"]):
             t_name = team["team_name"]
-            with st.expander(f"🏢 **{t_name}** (실적: {len(team['this_week'])}건 / 계획: {len(team['next_week'])}건)", expanded=True):
+            with st.expander(f"🏢 **{t_name}** (실적: {len(team['this_week'])}건 / 계획: {len(team['next_week'])}건)", expanded=False):
+                if st.button("🗑️ 팀 삭제", key=f"delete_team_{idx}"):
+                    st.session_state["reports_data"].pop(idx)
+                    save_data(st.session_state["reports_data"])
+                    queue_feedback(f"[{t_name}] 팀을 삭제했습니다.")
+                    st.session_state["target_tab"] = TAB_MANAGE
+                    st.rerun()
                 col_t1, col_t2 = st.columns(2)
                 
                 with col_t1:
@@ -360,17 +374,21 @@ with tab3:
 
     download_col, reset_col = st.columns([3, 1])
     with download_col:
-        if total_teams > 0:
+        if active_report_teams:
+            dynamic_hwpx = generate_dynamic_hwpx_bytes(active_report_teams)
             st.download_button(
-                label="📥 한글(.hwp) 다운로드",
-                data=gen.generate_hwp_bytes(st.session_state["reports_data"]),
-                file_name=f"주간보고_취합_{today_str}.hwp",
-                mime="application/x-hwp",
+                label="📥 동적 한글(.hwpx) 다운로드",
+                data=dynamic_hwpx,
+                file_name=f"주간보고_취합_{today_str}.hwpx",
+                mime="application/hwp+zip",
                 type="primary",
                 use_container_width=True,
+                key="dynamic_hwpx_download",
             )
+            st.caption("항목 수에 따라 제목·내용 문단과 셀 높이가 자동으로 늘어나는 권장 형식입니다.")
+
         else:
-            st.button("📥 한글(.hwp) 다운로드", disabled=True, use_container_width=True)
+            st.button("📥 동적 한글(.hwpx) 다운로드", disabled=True, use_container_width=True)
 
     with reset_col:
         if st.button("🗑️ 전체 데이터 초기화", use_container_width=True):
@@ -386,7 +404,7 @@ with tab3:
     if not st.session_state["reports_data"]:
         st.info("취합할 데이터가 아직 없습니다.")
     else:
-        preview_html = gen.generate_html_preview(st.session_state["reports_data"])
+        preview_html = gen.generate_html_preview(active_report_teams)
         st.markdown(preview_html, unsafe_allow_html=True)
 
 
