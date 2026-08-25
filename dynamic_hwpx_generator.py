@@ -81,7 +81,7 @@ def _replace_cell_content(cell, team_name, entries, include_date, team_field, ti
         details = [_clean_detail(d) for d in entry.get("details", [])]
         details = [d for d in details if d]
         if title:
-            sublist.append(_plain_paragraph(title_proto, ["○ ", title, ""]))
+            sublist.append(_plain_paragraph(title_proto, ["ㅇ ", title, ""]))
             created += 1
         for detail in details:
             sublist.append(_plain_paragraph(detail_proto, ["  - ", detail, ""]))

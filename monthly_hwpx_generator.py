@@ -96,7 +96,7 @@ def generate_monthly_hwpx_bytes(month, report_data, department="AI혁신처"):
             if entry_index > 1:
                 sublist.append(_plain_paragraph(spacer_proto, ""))
             title = str(entry.get("title", "")).strip()
-            sublist.append(_plain_paragraph(title_proto, f"{entry_index}. {title}"))
+            sublist.append(_plain_paragraph(title_proto, f" {entry_index}. {title}"))
             for content in entry.get("contents", []):
                 content = str(content).strip().lstrip("○- ")
                 if content:

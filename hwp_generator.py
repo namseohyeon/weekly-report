@@ -476,7 +476,7 @@ class HWPXGenerator:
                             title += f"({completed.month}.{completed.day})"
                         except (TypeError, ValueError):
                             pass
-                    parts.append(f'<div class="report-title">○&nbsp;{title}</div>')
+                    parts.append(f'<div class="report-title">ㅇ&nbsp;{title}</div>')
                 for detail in entry.get("details", []):
                     detail = escape(detail.strip().lstrip("- "))
                     if detail:

@@ -240,7 +240,7 @@ def render_monthly_report():
                 )
                 blocks.append(
                     f'<div class="monthly-entry"><div class="monthly-title">'
-                    f'{entry_index}.&nbsp;{title}</div>{contents}</div>'
+                    f'&nbsp;{entry_index}.&nbsp;{title}</div>{contents}</div>'
                 )
             return "".join(blocks)
 
