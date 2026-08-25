@@ -8,6 +8,8 @@ from lxml import etree as ET
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_PATH = BASE_DIR / "전략경영회의양식.hwpx"
 HP = "http://www.hancom.co.kr/hwpml/2011/paragraph"
+HH = "http://www.hancom.co.kr/hwpml/2011/head"
+HC = "http://www.hancom.co.kr/hwpml/2011/core"
 
 
 def _q(name):
@@ -30,6 +32,22 @@ def _plain_paragraph(prototype, text):
         node.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
     node.text = text
     return paragraph
+
+
+def _apply_hanging_indent(header_root, paragraph_widths):
+    for para_pr in header_root.iter(f"{{{HH}}}paraPr"):
+        base_width = paragraph_widths.get(para_pr.get("id"))
+        if not base_width:
+            continue
+        for margin_index, margin in enumerate(para_pr.iter(f"{{{HH}}}margin")):
+            intent = margin.find(f"{{{HC}}}intent")
+            left = margin.find(f"{{{HC}}}left")
+            if intent is not None and left is not None:
+                width = base_width * (1 if margin_index == 0 else 2)
+                original_left = int(left.get("value", "0"))
+                # 첫 줄의 절대 시작점(original_left)은 유지하고, 둘째 줄만 본문 위치로 이동한다.
+                left.set("value", str(original_left + width))
+                intent.set("value", str(-width))
 
 
 def generate_monthly_hwpx_bytes(month, report_data, department="AI혁신처"):
@@ -60,13 +78,15 @@ def generate_monthly_hwpx_bytes(month, report_data, department="AI혁신처"):
             text.text = re.sub(r"\d{1,2}월 추진계획", f"{plan_month}월 추진계획", text.text)
 
     content_cells = rows[2].findall(_q("tc"))
+    # 좌우 셀에 동일한 문단 서식(제목/내용/내어쓰기)을 사용한다.
+    canonical_paragraphs = content_cells[0].find(_q("subList")).findall(_q("p"))
+    blank_proto = canonical_paragraphs[0]
+    title_proto = canonical_paragraphs[1]
+    item_proto = canonical_paragraphs[2]
+    spacer_proto = canonical_paragraphs[3] if len(canonical_paragraphs) > 3 else blank_proto
     for cell, category in zip(content_cells, ("performance", "plan")):
         sublist = cell.find(_q("subList"))
         paragraphs = sublist.findall(_q("p"))
-        blank_proto = paragraphs[0]
-        title_proto = paragraphs[1]
-        item_proto = paragraphs[2]
-        spacer_proto = paragraphs[3] if len(paragraphs) > 3 else paragraphs[0]
         for paragraph in list(paragraphs):
             sublist.remove(paragraph)
         sublist.append(_plain_paragraph(blank_proto, ""))
@@ -86,6 +106,18 @@ def generate_monthly_hwpx_bytes(month, report_data, department="AI혁신처"):
             sublist.append(_plain_paragraph(title_proto, "-"))
 
     members[section_name] = ET.tostring(root, encoding="utf-8", xml_declaration=True, standalone=True)
+    header_name = "Contents/header.xml"
+    header_root = ET.fromstring(members[header_name], parser=parser)
+    _apply_hanging_indent(
+        header_root,
+        {
+            title_proto.get("paraPrIDRef"): 900,
+            item_proto.get("paraPrIDRef"): 1500,
+        },
+    )
+    members[header_name] = ET.tostring(
+        header_root, encoding="utf-8", xml_declaration=True, standalone=True
+    )
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w") as target:
         for info in source_infos:

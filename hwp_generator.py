@@ -561,9 +561,9 @@ class HWPXGenerator:
     .report-table th, .report-table td {{ width: auto; min-width: 0; }}
     .team-row {{ break-inside: avoid; page-break-inside: avoid; }}
     .team-name {{ font-weight: 700; margin-bottom: 1mm; }}
-    .report-title {{ font-weight: 700; padding-left: 1mm; }}
+    .report-title {{ font-weight: 700; padding-left: 2.2em; text-indent: calc(1mm - 2.2em); }}
     .report-detail {{
-        padding-left: 1mm; font-weight: 400;
+        padding-left: 3.1em; text-indent: calc(1mm - 3.1em); font-weight: 400;
         font-family: "한양중고딕", "HYGothic-Medium", "맑은 고딕", sans-serif;
         font-size: 12pt;
     }}
