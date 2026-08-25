@@ -96,11 +96,11 @@ def generate_monthly_hwpx_bytes(month, report_data, department="AI혁신처"):
             if entry_index > 1:
                 sublist.append(_plain_paragraph(spacer_proto, ""))
             title = str(entry.get("title", "")).strip()
-            sublist.append(_plain_paragraph(title_proto, f"○  {title}"))
+            sublist.append(_plain_paragraph(title_proto, f"{entry_index}. {title}"))
             for content in entry.get("contents", []):
                 content = str(content).strip().lstrip("○- ")
                 if content:
-                    sublist.append(_plain_paragraph(item_proto, f"  -  {content}"))
+                    sublist.append(_plain_paragraph(item_proto, f"  ○  {content}"))
 
         if not entries:
             sublist.append(_plain_paragraph(title_proto, "-"))
@@ -112,7 +112,7 @@ def generate_monthly_hwpx_bytes(month, report_data, department="AI혁신처"):
         header_root,
         {
             title_proto.get("paraPrIDRef"): 900,
-            item_proto.get("paraPrIDRef"): 1200,
+            item_proto.get("paraPrIDRef"): 1500,
         },
     )
     members[header_name] = ET.tostring(
