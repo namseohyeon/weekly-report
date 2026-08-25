@@ -58,6 +58,20 @@ streamlit run app.py
 - `dynamic_hwpx_generator.py`: 주간보고 HWPX 동적 생성
 - `monthly_hwpx_generator.py`: 월간보고 HWPX 동적 생성
 - `hwp_generator.py`: 주간보고 웹 미리보기 생성
+- `storage_backend.py`: Supabase 또는 로컬 JSON 저장소 연결
+- `supabase_schema.sql`: 운영 DB 테이블 생성 SQL
 - `requirements.txt`: 실행 의존성
 
-입력 데이터는 로컬 JSON 파일에 저장됩니다. 실제 운영에서는 개인정보와 업무 내용이 포함된 데이터 파일을 Git에 커밋하지 않는 것을 권장합니다.
+## Supabase 운영 저장소
+
+로컬 개발에서는 JSON 파일을 사용하고, 배포 환경에 Supabase Secrets가 설정되면 보고 기간별로 Supabase에 저장됩니다. 앱은 이번 달과 전달 데이터만 유지하며, 그보다 오래된 보고 기간은 접속 시 자동 삭제합니다.
+
+1. Supabase SQL Editor에서 `supabase_schema.sql`을 실행합니다.
+2. Streamlit Community Cloud의 **App settings → Secrets**에 아래 값을 등록합니다.
+
+```toml
+SUPABASE_URL = "https://프로젝트-ID.supabase.co"
+SUPABASE_KEY = "service_role 키"
+```
+
+`SUPABASE_KEY`는 코드나 Git에 커밋하지 마세요. 서비스 역할 키를 사용하므로 `report_states` 테이블에 anon 공개 정책을 만들 필요가 없습니다. 기존 `data_store.json`, `monthly_data_store.json`, `.streamlit/secrets.toml`은 Git에서 제외됩니다.

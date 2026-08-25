@@ -4,6 +4,9 @@ streamlit-output.log
 streamlit-error.log
 reviewed_files/
 data/history/
+data_store.json
+monthly_data_store.json
+.streamlit/secrets.toml
 
 monthly_data_store.json
 outputs/

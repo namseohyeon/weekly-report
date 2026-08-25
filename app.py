@@ -14,6 +14,7 @@ from dynamic_hwpx_generator import generate_dynamic_hwpx_bytes
 import monthly_hwpx_generator
 importlib.reload(monthly_hwpx_generator)
 from monthly_hwpx_generator import generate_monthly_hwpx_bytes
+from storage_backend import cleanup_old_states, load_state, save_state, supabase_enabled
 
 # 페이지 구성 설정
 st.set_page_config(
@@ -22,22 +23,21 @@ st.set_page_config(
     layout="wide"
 )
 
+if supabase_enabled():
+    try:
+        cleanup_old_states(datetime.date.today().isoformat())
+    except Exception as error:
+        st.warning(f"데이터 보관 기간 정리를 완료하지 못했습니다: {error}")
+
 DATA_FILE = "data_store.json"
 HISTORY_DIR = os.path.join("data", "history")
 MONTHLY_DATA_FILE = "monthly_data_store.json"
 
 def load_data():
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return []
+    return load_state("weekly", DATA_FILE, [])
 
 def save_data(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    save_state("weekly", data, DATA_FILE)
     # 입력 내용이 바뀌면 이전에 생성한 문서는 더 이상 최신 문서가 아니다.
     st.session_state.pop("generated_hwp", None)
     st.session_state.pop("generated_hwp_key", None)
@@ -75,25 +75,18 @@ def show_queued_feedback():
 if "reports_data" not in st.session_state:
     st.session_state["reports_data"] = load_data()
 def load_monthly_data():
-    if os.path.exists(MONTHLY_DATA_FILE):
-        try:
-            with open(MONTHLY_DATA_FILE, "r", encoding="utf-8") as file:
-                saved = json.load(file)
-            if "performance" in saved and "plan" in saved:
-                return saved
-        except Exception:
-            pass
-    return {
+    default = {
         "month": datetime.datetime.now().month,
         "department": "AI혁신처",
         "performance": [],
         "plan": [],
     }
+    saved = load_state("monthly", MONTHLY_DATA_FILE, default)
+    return saved if "performance" in saved and "plan" in saved else default
 
 
 def save_monthly_data(data):
-    with open(MONTHLY_DATA_FILE, "w", encoding="utf-8") as file:
-        json.dump(data, file, ensure_ascii=False, indent=2)
+    save_state("monthly", data, MONTHLY_DATA_FILE)
 
 
 def render_monthly_report():
