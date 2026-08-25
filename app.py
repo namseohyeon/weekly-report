@@ -198,12 +198,12 @@ def render_monthly_report():
             )
             with department_col:
                 department = st.text_input(
-                    "부서명",
+                    "처명",
                     value=monthly.get("department", "AI혁신처"),
                     key="monthly_department",
                 )
             with save_col:
-                if st.button("부서명 저장", use_container_width=True):
+                if st.button("처명 저장", use_container_width=True):
                     monthly["department"] = department.strip() or "AI혁신처"
                     save_monthly_data(monthly)
                     st.rerun()
@@ -670,32 +670,20 @@ with tab3:
     st.subheader("👁️ 최종 문서 미리보기·저장")
     st.caption("다운로드할 A4 가로형 한글 보고서의 내용을 확인합니다.")
 
-    download_col, reset_col = st.columns([3, 1])
-    with download_col:
-        if active_report_teams:
-            dynamic_hwpx = generate_dynamic_hwpx_bytes(active_report_teams)
-            st.download_button(
-                label="📥 동적 한글(.hwpx) 다운로드",
-                data=dynamic_hwpx,
-                file_name=f"주간보고_취합_{today_str}.hwpx",
-                mime="application/hwp+zip",
-                type="primary",
-                use_container_width=True,
-                key="dynamic_hwpx_download",
-            )
-            st.caption("항목 수에 따라 제목·내용 문단과 셀 높이가 자동으로 늘어나는 권장 형식입니다.")
-
-        else:
-            st.button("📥 동적 한글(.hwpx) 다운로드", disabled=True, use_container_width=True)
-
-    with reset_col:
-        if st.button("🗑️ 전체 데이터 초기화", use_container_width=True):
-            st.session_state["reports_data"] = []
-            st.session_state.pop("generated_hwp", None)
-            save_data([])
-            queue_feedback("전체 보고 데이터를 초기화했습니다.")
-            st.session_state["target_tab"] = TAB_PREVIEW
-            st.rerun()
+    if active_report_teams:
+        dynamic_hwpx = generate_dynamic_hwpx_bytes(active_report_teams)
+        st.download_button(
+            label="📥 동적 한글(.hwpx) 다운로드",
+            data=dynamic_hwpx,
+            file_name=f"주간보고_취합_{today_str}.hwpx",
+            mime="application/hwp+zip",
+            type="primary",
+            use_container_width=True,
+            key="dynamic_hwpx_download",
+        )
+        st.caption("항목 수에 따라 제목·내용 문단과 셀 높이가 자동으로 늘어나는 권장 형식입니다.")
+    else:
+        st.button("📥 동적 한글(.hwpx) 다운로드", disabled=True, use_container_width=True)
 
     st.divider()
     
