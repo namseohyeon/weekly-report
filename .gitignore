@@ -4,3 +4,6 @@ streamlit-output.log
 streamlit-error.log
 reviewed_files/
 data/history/
+
+monthly_data_store.json
+outputs/

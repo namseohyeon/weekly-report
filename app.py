@@ -3,12 +3,17 @@ import json
 import os
 import datetime
 import importlib
+import copy
+import html
 import hwp_generator
 importlib.reload(hwp_generator)
 from hwp_generator import HWPXGenerator
 import dynamic_hwpx_generator
 importlib.reload(dynamic_hwpx_generator)
 from dynamic_hwpx_generator import generate_dynamic_hwpx_bytes
+import monthly_hwpx_generator
+importlib.reload(monthly_hwpx_generator)
+from monthly_hwpx_generator import generate_monthly_hwpx_bytes
 
 # 페이지 구성 설정
 st.set_page_config(
@@ -19,6 +24,7 @@ st.set_page_config(
 
 DATA_FILE = "data_store.json"
 HISTORY_DIR = os.path.join("data", "history")
+MONTHLY_DATA_FILE = "monthly_data_store.json"
 
 def load_data():
     if os.path.exists(DATA_FILE):
@@ -68,6 +74,238 @@ def show_queued_feedback():
 # 세션 상태 초기화
 if "reports_data" not in st.session_state:
     st.session_state["reports_data"] = load_data()
+def load_monthly_data():
+    if os.path.exists(MONTHLY_DATA_FILE):
+        try:
+            with open(MONTHLY_DATA_FILE, "r", encoding="utf-8") as file:
+                saved = json.load(file)
+            if "performance" in saved and "plan" in saved:
+                return saved
+        except Exception:
+            pass
+    return {
+        "month": datetime.datetime.now().month,
+        "department": "AI혁신처",
+        "performance": [],
+        "plan": [],
+    }
+
+
+def save_monthly_data(data):
+    with open(MONTHLY_DATA_FILE, "w", encoding="utf-8") as file:
+        json.dump(data, file, ensure_ascii=False, indent=2)
+
+
+def render_monthly_report():
+    monthly = st.session_state["monthly_data"]
+    today = datetime.datetime.now()
+    if int(monthly.get("month", 0)) != today.month:
+        monthly["month"] = today.month
+        save_monthly_data(monthly)
+    write_tab, preview_tab, rollover_tab = st.tabs([
+        "📝 작성·수정",
+        "👁️ 미리보기·저장",
+        "🔄 다음 달로 이월",
+    ])
+
+    with write_tab:
+        report_month = int(monthly["month"])
+        plan_month = 1 if report_month == 12 else report_month + 1
+        st.subheader("📝 월간보고 작성·수정")
+        st.caption(f"오늘 {today.year}.{today.month}.{today.day}. 기준 · {report_month}월 추진실적 / {plan_month}월 추진계획")
+        with st.container(border=True):
+            st.markdown("### ✍️ 보고 항목 작성")
+            st.caption("작성 구분만 선택하고 같은 입력란에서 실적과 계획을 작성합니다.")
+            with st.form("monthly_add_entry_form", clear_on_submit=True):
+                category = st.radio(
+                    "작성 구분",
+                    options=["performance", "plan"],
+                    format_func=lambda value: (
+                        f"{report_month}월 추진실적" if value == "performance"
+                        else f"{plan_month}월 추진계획"
+                    ),
+                    horizontal=True,
+                    key="monthly_entry_category",
+                )
+                title = st.text_input("제목", placeholder="핵심 업무 제목을 입력하세요")
+                contents_text = st.text_area(
+                    "세부내용",
+                    placeholder="한 줄에 한 항목씩 입력하세요",
+                    height=140,
+                )
+                if st.form_submit_button("보고 항목 추가", type="primary", use_container_width=True):
+                    contents = [line.strip() for line in contents_text.splitlines() if line.strip()]
+                    if not title.strip():
+                        st.error("제목을 입력해 주세요.")
+                    elif not contents:
+                        st.error("세부내용을 한 줄 이상 입력해 주세요.")
+                    else:
+                        monthly[category].append({"title": title.strip(), "contents": contents})
+                        save_monthly_data(monthly)
+                        category_label = "추진실적" if category == "performance" else "추진계획"
+                        st.toast(f"{category_label}을 추가했습니다.", icon="✅")
+                        st.rerun()
+
+        total_entries = len(monthly.get("performance", [])) + len(monthly.get("plan", []))
+        st.markdown(f"### 등록 항목 <span class='monthly-count'>{total_entries}건</span>", unsafe_allow_html=True)
+        st.caption("왼쪽은 이번 달 추진실적, 오른쪽은 다음 달 추진계획입니다.")
+
+        def render_monthly_cards(category_key, category_label, badge_class):
+            entries = monthly.get(category_key, [])
+            st.markdown(
+                f'<div class="monthly-column-heading {badge_class}"><strong>{category_label}</strong><span>{len(entries)}건</span></div>',
+                unsafe_allow_html=True,
+            )
+            if not entries:
+                st.info("등록된 항목이 없습니다.")
+            for entry_index, entry in enumerate(entries):
+                with st.container(border=True):
+                    st.markdown(
+                        f'<span class="monthly-entry-badge {badge_class}">{category_label}</span>'
+                        f'<div class="monthly-list-title">{html.escape(str(entry.get("title", "")))}</div>',
+                        unsafe_allow_html=True,
+                    )
+                    for content in entry.get("contents", []):
+                        st.markdown(f"&nbsp;&nbsp;○&nbsp;&nbsp;{html.escape(str(content))}", unsafe_allow_html=True)
+                    edit_col, delete_col, empty_col = st.columns([1, 1, 2])
+                    with edit_col:
+                        with st.popover("✏️ 수정", use_container_width=True):
+                            edited_title = st.text_input(
+                                "제목", value=entry.get("title", ""),
+                                key=f"monthly_edit_title_{category_key}_{entry_index}",
+                            )
+                            edited_contents = st.text_area(
+                                "세부내용", value="\n".join(entry.get("contents", [])), height=180,
+                                key=f"monthly_edit_contents_{category_key}_{entry_index}",
+                            )
+                            if st.button("수정 저장", key=f"monthly_save_{category_key}_{entry_index}", type="primary", use_container_width=True):
+                                entry["title"] = edited_title.strip()
+                                entry["contents"] = [line.strip() for line in edited_contents.splitlines() if line.strip()]
+                                save_monthly_data(monthly)
+                                st.rerun()
+                    with delete_col:
+                        if st.button("🗑️ 삭제", key=f"monthly_delete_{category_key}_{entry_index}", use_container_width=True):
+                            monthly[category_key].pop(entry_index)
+                            save_monthly_data(monthly)
+                            st.rerun()
+
+        performance_list_col, plan_list_col = st.columns(2, gap="large")
+        with performance_list_col:
+            render_monthly_cards("performance", f"{report_month}월 추진실적", "performance")
+        with plan_list_col:
+            render_monthly_cards("plan", f"{plan_month}월 추진계획", "plan")
+    with preview_tab:
+        st.subheader("👁️ 월간보고 미리보기·저장")
+        report_month = int(monthly["month"])
+        plan_month = 1 if report_month == 12 else report_month + 1
+        setting_left_space, setting_center, setting_right_space = st.columns([1, 2.2, 1])
+        with setting_center:
+            department_col, save_col = st.columns(
+                [2.2, 1], gap="medium", vertical_alignment="bottom"
+            )
+            with department_col:
+                department = st.text_input(
+                    "부서명",
+                    value=monthly.get("department", "AI혁신처"),
+                    key="monthly_department",
+                )
+            with save_col:
+                if st.button("부서명 저장", use_container_width=True):
+                    monthly["department"] = department.strip() or "AI혁신처"
+                    save_monthly_data(monthly)
+                    st.rerun()
+
+        st.divider()
+        monthly_bytes = generate_monthly_hwpx_bytes(
+            monthly.get("month", datetime.datetime.now().month),
+            monthly,
+            monthly.get("department", "AI혁신처"),
+        )
+        monthly_file_name = f"전략경영회의_{monthly.get('month')}월_{datetime.datetime.now().strftime('%Y%m%d')}.hwpx"
+        download_left_space, download_center, download_right_space = st.columns([1, 2.2, 1])
+        with download_center:
+            st.download_button(
+                "📥 월간보고(.hwpx) 다운로드",
+                data=monthly_bytes,
+                file_name=monthly_file_name,
+                mime="application/hwp+zip",
+                type="primary",
+                use_container_width=True,
+            )
+
+        def monthly_cell_html(category_key):
+            entries = monthly.get(category_key, [])
+            if not entries:
+                return '<div class="monthly-empty">-</div>'
+            blocks = []
+            for entry_index, entry in enumerate(entries, start=1):
+                title = html.escape(str(entry.get("title", "")))
+                contents = "".join(
+                    f'<div class="monthly-item">○&nbsp;&nbsp;{html.escape(str(content))}</div>'
+                    for content in entry.get("contents", [])
+                    if str(content).strip()
+                )
+                blocks.append(
+                    f'<div class="monthly-entry"><div class="monthly-title">'
+                    f'{entry_index}. {title}</div>{contents}</div>'
+                )
+            return "".join(blocks)
+
+        report_month = int(monthly.get("month", datetime.datetime.now().month))
+        plan_month = 1 if report_month == 12 else report_month + 1
+        report_department = html.escape(monthly.get("department", "AI혁신처"))
+        st.markdown(
+            f"""
+            <div class="monthly-page">
+              <div class="monthly-department">[ 경 영 관 리 본 부 ]&nbsp;&nbsp;{report_department}</div>
+              <table class="monthly-report-table">
+                <thead><tr>
+                  <th>▣ {report_month}월 추진실적</th>
+                  <th>▣ {plan_month}월 추진계획</th>
+                </tr></thead>
+                <tbody><tr>
+                  <td>{monthly_cell_html("performance")}</td>
+                  <td>{monthly_cell_html("plan")}</td>
+                </tr></tbody>
+              </table>
+            </div>
+            <style>
+              .monthly-page {{ width: min(100%, 850px); margin: 20px auto 40px; padding: 42px 40px 70px; box-sizing: border-box; background: white; color: #111; border: 1px solid #e2e2e2; box-shadow: 0 2px 12px rgba(0,0,0,.06); font-family: "함초롬바탕", "Batang", serif; }}
+              .monthly-department {{ text-align: center; font-size: 21px; font-weight: 700; margin-bottom: 12px; }}
+              .monthly-report-table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
+              .monthly-report-table th, .monthly-report-table td {{ border: 1px solid #222; }}
+              .monthly-report-table th {{ height: 42px; padding: 3px 14px; font-size: 18px; line-height: 1.35; text-align: left; }}
+              .monthly-report-table td {{ height: 470px; padding: 18px 20px; vertical-align: top; font-size: 17px; line-height: 1.55; }}
+              .monthly-entry + .monthly-entry {{ margin-top: 20px; }}
+              .monthly-title {{ font-weight: 700; margin: 0 0 7px; line-height: 1.45; }}
+              .monthly-item {{ margin: 3px 0 0 27px; line-height: 1.55; }}
+              .monthly-empty {{ color: #555; }}
+              @media (max-width: 700px) {{ .monthly-page {{ padding: 24px 12px 40px; }} .monthly-report-table th {{ font-size: 14px; }} .monthly-report-table td {{ padding: 14px 10px; font-size: 14px; }} .monthly-item {{ margin-left: 10px; }} }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with rollover_tab:
+        st.subheader("🔄 다음 달로 이월")
+        st.caption("현재 추진계획을 다음 달의 추진실적으로 옮기고 현재 추진실적은 비웁니다.")
+        confirm = st.checkbox("다음 달로 이월하겠습니다.", key="monthly_rollover_confirm")
+        if st.button(
+            "추진계획을 다음 달 추진실적으로 이월",
+            disabled=not confirm or not monthly.get("plan"),
+            type="primary",
+            use_container_width=True,
+        ):
+            monthly["performance"] = copy.deepcopy(monthly.get("plan", []))
+            monthly["plan"] = []
+            monthly["month"] = 1 if int(monthly.get("month", 1)) == 12 else int(monthly.get("month", 1)) + 1
+            save_monthly_data(monthly)
+            st.toast("다음 달로 이월했습니다.", icon="✅")
+            st.rerun()
+
+
+if "monthly_data" not in st.session_state or "performance" not in st.session_state.get("monthly_data", {}):
+    st.session_state["monthly_data"] = load_monthly_data()
 
 # Custom CSS 스타일링
 st.markdown("""
@@ -90,6 +328,47 @@ st.markdown("""
         padding: 16px;
         margin-bottom: 15px;
     }
+    .monthly-hero {
+        display: flex; align-items: center; justify-content: space-between; gap: 24px;
+        margin: 4px 0 24px; padding: 24px 28px; border-radius: 18px;
+        color: white; background: linear-gradient(135deg, #123c69 0%, #1d6b8f 58%, #2a9d8f 100%);
+        box-shadow: 0 12px 28px rgba(18, 60, 105, .18);
+    }
+    .monthly-hero h2 { margin: 5px 0 4px; font-size: 27px; color: white; }
+    .monthly-hero p { margin: 0; color: rgba(255,255,255,.82); }
+    .monthly-kicker { font-size: 11px; letter-spacing: .18em; font-weight: 800; color: #bde8e1; }
+    .monthly-period-badge { flex: 0 0 auto; padding: 12px 17px; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; background: rgba(255,255,255,.12); font-size: 17px; font-weight: 800; }
+    [data-testid="stMainBlockContainer"] { max-width: 1500px; padding-left: 3rem; padding-right: 3rem; }
+    .st-key-report_type_switcher { margin: 0; padding: 6px; border: 1px solid #dbe5ef; border-radius: 16px; background: #f4f7fa; box-shadow: 0 5px 16px rgba(23,43,77,.08); }
+    .st-key-report_type_switcher [data-testid="stButton"] button { min-height: 50px !important; border-radius: 10px !important; font-size: 16px !important; font-weight: 800 !important; }
+    .st-key-report_type_switcher [data-testid="stButton"] button[kind="primary"] { box-shadow: 0 6px 16px rgba(239,83,80,.25); }
+    [data-testid="stSegmentedControl"] { width: 100%; margin: 16px 0 12px; padding: 7px; border: 1px solid #dbe5ef; border-radius: 16px; background: #f4f7fa; }
+    div[data-testid="stElementContainer"]:has([data-testid="stSegmentedControl"]),
+    [data-testid="stSegmentedControl"] [data-baseweb="button-group"] { width: 100% !important; }
+    [data-testid="stSegmentedControl"] > div,
+    [data-testid="stSegmentedControl"] [role="radiogroup"] { display: flex !important; width: 100% !important; gap: 7px !important; }
+    [data-testid="stSegmentedControl"] button,
+    [data-testid="stSegmentedControl"] label,
+    [data-testid="stSegmentedControl"] [role="radio"] { flex: 1 1 50% !important; width: 50% !important; min-height: 58px !important; border-radius: 11px !important; justify-content: center !important; font-weight: 800 !important; }
+    [data-testid="stSegmentedControl"] p,
+    [data-testid="stSegmentedControl"] span { font-size: 19px !important; font-weight: 800 !important; }
+    [data-testid="stSegmentedControl"] button[aria-checked="true"],
+    [data-testid="stSegmentedControl"] label:has(input:checked),
+    [data-testid="stSegmentedControl"] [role="radio"][aria-checked="true"] { color: white !important; background: linear-gradient(135deg,#ef5350,#ff6b5f) !important; box-shadow: 0 6px 16px rgba(239,83,80,.28); }
+    div[data-baseweb="popover"] { min-width: 540px !important; max-width: min(92vw, 640px) !important; }
+    div[data-baseweb="popover"] > div { width: 100% !important; }
+    [data-testid="stPopoverBody"] { min-width: 540px !important; width: min(92vw, 640px) !important; padding: 22px !important; }
+    .monthly-count { display: inline-block; margin-left: 6px; padding: 3px 9px; border-radius: 999px; background: #edf2f7; color: #4a5568; font-size: 13px; vertical-align: middle; }
+    .monthly-column-heading { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 10px; padding: 12px 15px; border-radius: 12px; }
+    .monthly-column-heading.performance { color: #116149; background: linear-gradient(135deg,#ecfbf5,#dff7ed); }
+    .monthly-column-heading.plan { color: #2455a4; background: linear-gradient(135deg,#f1f6ff,#e4edff); }
+    .monthly-column-heading span { padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.75); font-size: 12px; font-weight: 800; }
+    .monthly-entry-badge { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+    .monthly-entry-badge.performance { color: #116149; background: #def7ec; }
+    .monthly-entry-badge.plan { color: #2455a4; background: #e6efff; }
+    .monthly-list-title { margin: 8px 0 4px; color: #172b4d; font-size: 18px; font-weight: 800; }
+    .weekly-entry-author { margin: -1px 0 10px; color: #718096; font-size: 13px; font-style: italic; }
+    @media (max-width: 700px) { [data-testid="stMainBlockContainer"] { padding-left: 1rem; padding-right: 1rem; } .monthly-hero { align-items: flex-start; flex-direction: column; } }
     .stButton>button {
         border-radius: 6px;
         font-weight: bold;
@@ -97,10 +376,41 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 메인 타이틀 영역
-st.markdown('<div class="main-header">📝 주간보고 자동 취합 서비스</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">팀별 이번 주 실적과 다음 주 계획을 작성하고 한글(.hwp) 보고서로 다운로드할 수 있습니다.</div>', unsafe_allow_html=True)
+# 메인 타이틀·보고서 전환 영역 — 시안 A
+if "active_report_type" not in st.session_state:
+    st.session_state["active_report_type"] = "주간보고"
+
+header_title_col, header_switch_col = st.columns([2.2, 1.25], gap="large", vertical_alignment="center")
+with header_title_col:
+    st.markdown('<div class="main-header">📝 주간보고 자동 취합 서비스</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">주간·월간 실적과 계획을 작성하고 한글(.hwpx) 보고서로 다운로드할 수 있습니다.</div>', unsafe_allow_html=True)
+with header_switch_col:
+    with st.container(key="report_type_switcher"):
+        weekly_switch, monthly_switch = st.columns(2, gap="small")
+        with weekly_switch:
+            if st.button(
+                "📅 주간보고",
+                type="primary" if st.session_state["active_report_type"] == "주간보고" else "secondary",
+                use_container_width=True,
+                key="show_weekly_report",
+            ):
+                st.session_state["active_report_type"] = "주간보고"
+                st.rerun()
+        with monthly_switch:
+            if st.button(
+                "🗓️ 월간보고",
+                type="primary" if st.session_state["active_report_type"] == "월간보고" else "secondary",
+                use_container_width=True,
+                key="show_monthly_report",
+            ):
+                st.session_state["active_report_type"] = "월간보고"
+                st.rerun()
+
 show_queued_feedback()
+report_type = st.session_state["active_report_type"]
+if report_type == "월간보고":
+    render_monthly_report()
+    st.stop()
 
 # 상단 현황 영역
 total_teams = len(st.session_state["reports_data"])
@@ -117,14 +427,13 @@ missing_performance_dates = sum(
     if not entry.get("performance_date")
 )
 
-st.info(f"📊 **현재 취합 현황**: 총 **{total_teams}개 팀** | 이번주 실적 **{total_this}건** | 다음주 계획 **{total_next}건**")
-if missing_performance_dates:
-    st.warning(f"⚠️ 실적 날짜가 입력되지 않은 이번 주 실적이 {missing_performance_dates}건 있습니다. 검토용 다운로드는 가능하며, 날짜는 나중에 수정할 수 있습니다.")
-
 gen = HWPXGenerator()
 today_str = datetime.datetime.now().strftime("%Y%m%d")
 
 st.divider()
+st.info(f"📊 **현재 취합 현황**: 총 **{total_teams}개 팀** | 이번주 실적 **{total_this}건** | 다음주 계획 **{total_next}건**")
+if missing_performance_dates:
+    st.warning(f"⚠️ 실적 날짜가 입력되지 않은 이번 주 실적이 {missing_performance_dates}건 있습니다. 검토용 다운로드는 가능하며, 날짜는 나중에 수정할 수 있습니다.")
 
 # 메인 작업 탭 구분
 TAB_MANAGE = "📝 보고서 작성·수정"
@@ -284,89 +593,81 @@ with tab2:
     if not st.session_state["reports_data"]:
         st.info("등록된 팀이 없습니다. 위의 '새 팀 추가'에서 팀을 먼저 추가해 주세요.")
     else:
+        def render_weekly_cards(team, team_index, category_key, heading, badge_class, include_date=False):
+            entries = team.get(category_key, [])
+            st.markdown(
+                f'<div class="monthly-column-heading {badge_class}"><strong>{heading}</strong><span>{len(entries)}건</span></div>',
+                unsafe_allow_html=True,
+            )
+            if not entries:
+                st.info("등록된 항목이 없습니다.")
+            for entry_index, entry in enumerate(entries):
+                author = entry.get("author", "").strip() or "미지정"
+                shown_title = format_entry_title(entry, include_date=include_date)
+                with st.container(border=True):
+                    st.markdown(
+                        f'<span class="monthly-entry-badge {badge_class}">{heading}</span>'
+                        f'<div class="monthly-list-title">{html.escape(shown_title)}</div>'
+                        f'<div class="weekly-entry-author">작성자 · {html.escape(author)}</div>',
+                        unsafe_allow_html=True,
+                    )
+                    for detail in entry.get("details", []):
+                        clean_detail = html.escape(str(detail).strip().lstrip("- "))
+                        st.markdown(f"&nbsp;&nbsp;-&nbsp;&nbsp;{clean_detail}", unsafe_allow_html=True)
+                    action_edit, action_delete, action_empty = st.columns([1, 1, 2])
+                    revision = st.session_state.get("edit_popover_revision", 0)
+                    with action_edit:
+                        with st.popover("✏️ 수정", key=f"weekly_edit_{category_key}_{team_index}_{entry_index}_{revision}", use_container_width=True):
+                            edit_author = st.text_input("작성자", value=entry.get("author", ""), key=f"weekly_author_{category_key}_{team_index}_{entry_index}")
+                            edit_date = None
+                            if include_date:
+                                edit_date = st.date_input(
+                                    "실적 날짜 (선택사항)", value=parse_saved_date(entry.get("performance_date")),
+                                    key=f"weekly_date_{category_key}_{team_index}_{entry_index}",
+                                )
+                            edit_title = st.text_input("제목", value=entry.get("title", ""), key=f"weekly_title_{category_key}_{team_index}_{entry_index}")
+                            edit_details = st.text_area("세부내용", value="\n".join(entry.get("details", [])), height=180, key=f"weekly_details_{category_key}_{team_index}_{entry_index}")
+                            if st.button("수정 저장", key=f"weekly_save_{category_key}_{team_index}_{entry_index}", type="primary", use_container_width=True):
+                                entry.update({
+                                    "author": edit_author.strip(),
+                                    "title": edit_title.strip(),
+                                    "details": [line.strip() for line in edit_details.splitlines() if line.strip()],
+                                    "performance_date": edit_date.isoformat() if include_date and edit_date else "",
+                                })
+                                save_data(st.session_state["reports_data"])
+                                queue_feedback(f"[{team['team_name']}] {heading}을 수정했습니다.")
+                                st.session_state["edit_popover_revision"] = revision + 1
+                                st.session_state["target_tab"] = TAB_MANAGE
+                                st.rerun()
+                    with action_delete:
+                        if st.button("🗑️ 삭제", key=f"weekly_delete_{category_key}_{team_index}_{entry_index}", use_container_width=True):
+                            team[category_key].pop(entry_index)
+                            save_data(st.session_state["reports_data"])
+                            queue_feedback(f"[{team['team_name']}] {heading}을 삭제했습니다.")
+                            st.session_state["target_tab"] = TAB_MANAGE
+                            st.rerun()
+
         for idx, team in enumerate(st.session_state["reports_data"]):
-            t_name = team["team_name"]
-            with st.expander(f"🏢 **{t_name}** (실적: {len(team['this_week'])}건 / 계획: {len(team['next_week'])}건)", expanded=False):
-                if st.button("🗑️ 팀 삭제", key=f"delete_team_{idx}"):
-                    st.session_state["reports_data"].pop(idx)
-                    save_data(st.session_state["reports_data"])
-                    queue_feedback(f"[{t_name}] 팀을 삭제했습니다.")
-                    st.session_state["target_tab"] = TAB_MANAGE
-                    st.rerun()
-                col_t1, col_t2 = st.columns(2)
-                
-                with col_t1:
-                    st.markdown("### 이번 주 실적")
-                    if not team["this_week"]:
-                        st.caption("- 등록된 항목 없음")
-                    else:
-                        for entry_idx, entry in enumerate(team["this_week"]):
-                            author = entry.get("author", "").strip() or "미지정"
-                            shown_title = format_entry_title(entry, include_date=True)
-                            st.markdown(f"**• {shown_title}** *(작성자: {author})*")
-                            for d in entry.get("details", []):
-                                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;{d}")
-                            popover_revision = st.session_state.get("edit_popover_revision", 0)
-                            with st.popover("✏️ 수정", key=f"edit_tw_popover_{idx}_{entry_idx}_{popover_revision}"):
-                                edit_author = st.text_input("작성자", value=entry.get("author", ""), key=f"edit_tw_author_{idx}_{entry_idx}")
-                                edit_date = st.date_input("실적 날짜 (선택사항)", value=parse_saved_date(entry.get("performance_date")), key=f"edit_tw_date_{idx}_{entry_idx}")
-                                edit_title = st.text_input("제목", value=entry.get("title", ""), key=f"edit_tw_title_{idx}_{entry_idx}")
-                                if edit_date:
-                                    st.caption(f"문서 표시: {edit_title}({edit_date.month}.{edit_date.day})")
-                                edit_details = st.text_area("세부내용", value="\n".join(entry.get("details", [])), key=f"edit_tw_details_{idx}_{entry_idx}")
-                                if st.button("수정 저장", key=f"save_tw_{idx}_{entry_idx}", type="primary"):
-                                    entry.update({
-                                        "author": edit_author.strip(),
-                                        "performance_date": edit_date.isoformat() if edit_date else "",
-                                        "title": edit_title.strip(),
-                                        "details": [line.strip() for line in edit_details.splitlines() if line.strip()],
-                                    })
-                                    save_data(st.session_state["reports_data"])
-                                    queue_feedback(f"[{t_name}] 이번 주 실적을 수정했습니다.")
-                                    st.session_state["edit_popover_revision"] = popover_revision + 1
-                                    st.session_state["target_tab"] = TAB_MANAGE
-                                    st.rerun()
-                            if st.button("삭제", key=f"del_tw_{idx}_{entry_idx}"):
-                                team["this_week"].pop(entry_idx)
-                                save_data(st.session_state["reports_data"])
-                                queue_feedback(f"[{t_name}] 이번 주 실적을 삭제했습니다.")
-                                st.session_state["target_tab"] = TAB_MANAGE
-                                st.rerun()
-
-                with col_t2:
-                    st.markdown("### 다음 주 계획")
-                    if not team["next_week"]:
-                        st.caption("- 등록된 항목 없음")
-                    else:
-                        for entry_idx, entry in enumerate(team["next_week"]):
-                            author = entry.get("author", "").strip() or "미지정"
-                            st.markdown(f"**• {entry.get('title', '')}** *(작성자: {author})*")
-                            for d in entry.get("details", []):
-                                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;{d}")
-                            popover_revision = st.session_state.get("edit_popover_revision", 0)
-                            with st.popover("✏️ 수정", key=f"edit_nw_popover_{idx}_{entry_idx}_{popover_revision}"):
-                                edit_author = st.text_input("작성자", value=entry.get("author", ""), key=f"edit_nw_author_{idx}_{entry_idx}")
-                                edit_title = st.text_input("제목", value=entry.get("title", ""), key=f"edit_nw_title_{idx}_{entry_idx}")
-                                edit_details = st.text_area("세부내용", value="\n".join(entry.get("details", [])), key=f"edit_nw_details_{idx}_{entry_idx}")
-                                if st.button("수정 저장", key=f"save_nw_{idx}_{entry_idx}", type="primary"):
-                                    entry.update({
-                                        "author": edit_author.strip(),
-                                        "performance_date": "",
-                                        "title": edit_title.strip(),
-                                        "details": [line.strip() for line in edit_details.splitlines() if line.strip()],
-                                    })
-                                    save_data(st.session_state["reports_data"])
-                                    queue_feedback(f"[{t_name}] 다음 주 계획을 수정했습니다.")
-                                    st.session_state["edit_popover_revision"] = popover_revision + 1
-                                    st.session_state["target_tab"] = TAB_MANAGE
-                                    st.rerun()
-                            if st.button("삭제", key=f"del_nw_{idx}_{entry_idx}"):
-                                team["next_week"].pop(entry_idx)
-                                save_data(st.session_state["reports_data"])
-                                queue_feedback(f"[{t_name}] 다음 주 계획을 삭제했습니다.")
-                                st.session_state["target_tab"] = TAB_MANAGE
-                                st.rerun()
-
+            team_name = team["team_name"]
+            with st.expander(
+                f"🏢 {team_name} · 실적 {len(team['this_week'])}건 / 계획 {len(team['next_week'])}건",
+                expanded=True,
+            ):
+                team_title_col, team_delete_col = st.columns([5, 1])
+                with team_title_col:
+                    st.markdown(f"#### {html.escape(team_name)}")
+                with team_delete_col:
+                    if st.button("🗑️ 팀 삭제", key=f"delete_team_{idx}", use_container_width=True):
+                        st.session_state["reports_data"].pop(idx)
+                        save_data(st.session_state["reports_data"])
+                        queue_feedback(f"[{team_name}] 팀을 삭제했습니다.")
+                        st.session_state["target_tab"] = TAB_MANAGE
+                        st.rerun()
+                performance_col, plan_col = st.columns(2, gap="large")
+                with performance_col:
+                    render_weekly_cards(team, idx, "this_week", "이번 주 실적", "performance", include_date=True)
+                with plan_col:
+                    render_weekly_cards(team, idx, "next_week", "다음 주 계획", "plan")
 # --- TAB 3: 최종 문서 미리보기 ---
 with tab3:
     st.subheader("👁️ 최종 문서 미리보기·저장")
