@@ -234,13 +234,13 @@ def render_monthly_report():
             for entry_index, entry in enumerate(entries, start=1):
                 title = html.escape(str(entry.get("title", "")))
                 contents = "".join(
-                    f'<div class="monthly-item">&nbsp;&nbsp;○&nbsp;&nbsp;{html.escape(str(content).strip().lstrip("○- "))}</div>'
+                    f'<div class="monthly-item">&nbsp;&nbsp;○&nbsp;{html.escape(str(content).strip().lstrip("○- "))}</div>'
                     for content in entry.get("contents", [])
                     if str(content).strip().lstrip("○- ")
                 )
                 blocks.append(
                     f'<div class="monthly-entry"><div class="monthly-title">'
-                    f'{entry_index}.&nbsp;&nbsp;{title}</div>{contents}</div>'
+                    f'{entry_index}.&nbsp;{title}</div>{contents}</div>'
                 )
             return "".join(blocks)
 

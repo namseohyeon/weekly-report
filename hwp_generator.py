@@ -476,11 +476,11 @@ class HWPXGenerator:
                             title += f"({completed.month}.{completed.day})"
                         except (TypeError, ValueError):
                             pass
-                    parts.append(f'<div class="report-title">○&nbsp; {title}</div>')
+                    parts.append(f'<div class="report-title">○&nbsp;{title}</div>')
                 for detail in entry.get("details", []):
                     detail = escape(detail.strip().lstrip("- "))
                     if detail:
-                        parts.append(f'<div class="report-detail">&nbsp;&nbsp;-&nbsp; {detail}</div>')
+                        parts.append(f'<div class="report-detail">&nbsp;&nbsp;-&nbsp;{detail}</div>')
             return "".join(parts) or '<div class="empty-report">-</div>'
 
         def render_rows(page_teams):

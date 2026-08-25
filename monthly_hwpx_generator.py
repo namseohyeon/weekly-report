@@ -100,24 +100,12 @@ def generate_monthly_hwpx_bytes(month, report_data, department="AI혁신처"):
             for content in entry.get("contents", []):
                 content = str(content).strip().lstrip("○- ")
                 if content:
-                    sublist.append(_plain_paragraph(item_proto, f"  ○  {content}"))
+                    sublist.append(_plain_paragraph(item_proto, f"  ○ {content}"))
 
         if not entries:
             sublist.append(_plain_paragraph(title_proto, "-"))
 
     members[section_name] = ET.tostring(root, encoding="utf-8", xml_declaration=True, standalone=True)
-    header_name = "Contents/header.xml"
-    header_root = ET.fromstring(members[header_name], parser=parser)
-    _apply_hanging_indent(
-        header_root,
-        {
-            title_proto.get("paraPrIDRef"): 900,
-            item_proto.get("paraPrIDRef"): 1500,
-        },
-    )
-    members[header_name] = ET.tostring(
-        header_root, encoding="utf-8", xml_declaration=True, standalone=True
-    )
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w") as target:
         for info in source_infos:
