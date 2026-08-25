@@ -10,6 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_PATH = BASE_DIR / "경영관리본부 주간 실적 및 계획.hwpx"
 HP = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 HS = "http://www.hancom.co.kr/hwpml/2011/section"
+HH = "http://www.hancom.co.kr/hwpml/2011/head"
 
 
 def _q(ns, name):
@@ -63,6 +64,19 @@ def _dated_title(entry, include_date):
         except (TypeError, ValueError):
             pass
     return title
+
+
+def _make_char_style_bold(header_bytes, char_pr_id):
+    root = ET.fromstring(header_bytes)
+    for char_pr in root.iter(_q(HH, "charPr")):
+        if char_pr.get("id") != char_pr_id:
+            continue
+        if char_pr.find(_q(HH, "bold")) is None:
+            bold = ET.Element(_q(HH, "bold"))
+            underline = char_pr.find(_q(HH, "underline"))
+            char_pr.insert(list(char_pr).index(underline) if underline is not None else len(char_pr), bold)
+        break
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
 def _replace_cell_content(cell, team_name, entries, include_date, team_field, title_field, detail_field):
@@ -168,6 +182,8 @@ def generate_dynamic_hwpx_bytes(teams_data):
             text.text = replacements[text.text]
 
     members[section_name] = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    # 제목 본문에 사용되는 문자 스타일(양식의 charPr 8)을 명시적으로 굵게 만든다.
+    members["Contents/header.xml"] = _make_char_style_bold(members["Contents/header.xml"], "8")
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w") as target:
         if "mimetype" in members:
