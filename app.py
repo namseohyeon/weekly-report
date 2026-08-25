@@ -17,7 +17,7 @@ from monthly_hwpx_generator import generate_monthly_hwpx_bytes
 
 # 페이지 구성 설정
 st.set_page_config(
-    page_title="주간보고 자동 취합 서비스",
+    page_title="주간·월간보고 자동 취합 서비스",
     page_icon="📝",
     layout="wide"
 )
