@@ -6,7 +6,7 @@ from pathlib import Path
 from lxml import etree as ET
 
 BASE_DIR = Path(__file__).resolve().parent
-TEMPLATE_PATH = BASE_DIR / "전략경영회의양식.hwpx"
+TEMPLATE_PATH = BASE_DIR / "월간보고양식.hwpx"
 HP = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 HH = "http://www.hancom.co.kr/hwpml/2011/head"
 HC = "http://www.hancom.co.kr/hwpml/2011/core"
@@ -16,7 +16,7 @@ def _q(name):
     return f"{{{HP}}}{name}"
 
 
-def _plain_paragraph(prototype, text):
+def _plain_paragraph(prototype, segments):
     paragraph = copy.deepcopy(prototype)
     # 새 텍스트의 길이에 맞게 한글이 줄 배치를 다시 계산하도록 기존 좌표를 제거한다.
     for lines in list(paragraph.findall(_q("linesegarray"))):
@@ -26,11 +26,14 @@ def _plain_paragraph(prototype, text):
     for run in runs:
         for child in list(run):
             run.remove(child)
-    target = runs[0]
-    node = ET.SubElement(target, _q("t"))
-    if text.startswith(" ") or text.endswith(" "):
-        node.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-    node.text = text
+    if isinstance(segments, str):
+        segments = [segments]
+    for index, text in enumerate(segments):
+        target = runs[min(index, len(runs) - 1)]
+        node = ET.SubElement(target, _q("t"))
+        if text.startswith(" ") or text.endswith(" "):
+            node.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+        node.text = text
     return paragraph
 
 
@@ -78,32 +81,30 @@ def generate_monthly_hwpx_bytes(month, report_data, department="AI혁신처"):
             text.text = re.sub(r"\d{1,2}월 추진계획", f"{plan_month}월 추진계획", text.text)
 
     content_cells = rows[2].findall(_q("tc"))
-    # 좌우 셀에 동일한 문단 서식(제목/내용/내어쓰기)을 사용한다.
-    canonical_paragraphs = content_cells[0].find(_q("subList")).findall(_q("p"))
-    blank_proto = canonical_paragraphs[0]
-    title_proto = canonical_paragraphs[1]
-    item_proto = canonical_paragraphs[2]
-    spacer_proto = canonical_paragraphs[3] if len(canonical_paragraphs) > 3 else blank_proto
     for cell, category in zip(content_cells, ("performance", "plan")):
         sublist = cell.find(_q("subList"))
-        paragraphs = sublist.findall(_q("p"))
+        paragraphs = list(sublist.findall(_q("p")))
+        blank_proto = paragraphs[0]
+        title_proto = paragraphs[1]
+        item_proto = paragraphs[2]
+        spacer_proto = paragraphs[3] if len(paragraphs) > 3 else blank_proto
         for paragraph in list(paragraphs):
             sublist.remove(paragraph)
-        sublist.append(_plain_paragraph(blank_proto, ""))
+        sublist.append(_plain_paragraph(blank_proto, [""]))
 
         entries = report_data.get(category, [])
         for entry_index, entry in enumerate(entries, start=1):
             if entry_index > 1:
-                sublist.append(_plain_paragraph(spacer_proto, ""))
+                sublist.append(_plain_paragraph(spacer_proto, [""]))
             title = str(entry.get("title", "")).strip()
-            sublist.append(_plain_paragraph(title_proto, f" {entry_index}. {title}"))
+            sublist.append(_plain_paragraph(title_proto, [f" {entry_index}. ", title]))
             for content in entry.get("contents", []):
                 content = str(content).strip().lstrip("○- ")
                 if content:
-                    sublist.append(_plain_paragraph(item_proto, f"  ○ {content}"))
+                    sublist.append(_plain_paragraph(item_proto, ["  ○ ", content]))
 
         if not entries:
-            sublist.append(_plain_paragraph(title_proto, "-"))
+            sublist.append(_plain_paragraph(title_proto, [" -", ""]))
 
     members[section_name] = ET.tostring(root, encoding="utf-8", xml_declaration=True, standalone=True)
     output = io.BytesIO()

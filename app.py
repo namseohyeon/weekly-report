@@ -263,15 +263,15 @@ def render_monthly_report():
               </table>
             </div>
             <style>
-              .monthly-page {{ width: min(100%, 850px); margin: 20px auto 40px; padding: 42px 40px 70px; box-sizing: border-box; background: white; color: #111; border: 1px solid #e2e2e2; box-shadow: 0 2px 12px rgba(0,0,0,.06); font-family: "함초롬바탕", "Batang", serif; }}
-              .monthly-department {{ text-align: center; font-size: 21px; font-weight: 700; margin-bottom: 12px; }}
+              .monthly-page {{ width: min(100%, 850px); margin: 20px auto 40px; padding: 42px 40px 70px; box-sizing: border-box; background: white; color: #111; border: 1px solid #e2e2e2; box-shadow: 0 2px 12px rgba(0,0,0,.06); font-family: "한양중고딕", "HY중고딕", "Malgun Gothic", sans-serif; }}
+              .monthly-department {{ text-align: center; font-size: 27px; font-weight: 700; margin-bottom: 12px; }}
               .monthly-report-table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
               .monthly-report-table th, .monthly-report-table td {{ border: 1px solid #222; }}
-              .monthly-report-table th {{ height: 42px; padding: 3px 14px; font-size: 18px; line-height: 1.35; text-align: left; }}
+              .monthly-report-table th {{ height: 42px; padding: 3px 14px; font-size: 21px; line-height: 1.35; text-align: left; }}
               .monthly-report-table td {{ height: 470px; padding: 18px 20px; vertical-align: top; font-size: 17px; line-height: 1.55; }}
               .monthly-entry + .monthly-entry {{ margin-top: 20px; }}
-              .monthly-title {{ font-weight: 700; margin: 0 0 7px; padding-left: 1.8em; text-indent: calc(1mm - 1.8em); line-height: 1.45; }}
-              .monthly-item {{ margin: 3px 0 0; padding-left: 3.1em; text-indent: calc(1mm - 3.1em); line-height: 1.55; }}
+              .monthly-title {{ font-size: 20px; font-weight: 700; margin: 0 0 7px; padding-left: 1.8em; text-indent: calc(1mm - 1.8em); line-height: 1.45; }}
+              .monthly-item {{ font-size: 17px; margin: 3px 0 0; padding-left: 3.1em; text-indent: calc(1mm - 3.1em); line-height: 1.55; }}
               .monthly-empty {{ color: #555; }}
               @media (max-width: 700px) {{ .monthly-page {{ padding: 24px 12px 40px; }} .monthly-report-table th {{ font-size: 14px; }} .monthly-report-table td {{ padding: 14px 10px; font-size: 14px; }} .monthly-item {{ margin-left: 10px; }} }}
             </style>
