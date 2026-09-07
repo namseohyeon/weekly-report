@@ -574,14 +574,14 @@ class HWPXGenerator:
     .report-entry + .report-entry {{ margin-top: 5pt; }}
     .report-title {{ font-weight: 700; padding-left: 2.2em; text-indent: calc(1mm - 2.2em); }}
     .report-detail {{
-        padding-left: 3.1em; font-weight: 400;
+        padding-left: calc(1mm + 4ch); font-weight: 400;
         font-family: "한양중고딕", "HYGothic-Medium", "맑은 고딕", sans-serif;
         font-size: 12pt;
     }}
-    .report-detail.has-dash {{ text-indent: calc(1mm - 3.1em); }}
+    .report-detail.has-dash {{ text-indent: -4ch; }}
     .report-detail.no-dash {{ text-indent: 0; }}
     .report-comment {{
-        padding-left: calc(3.1em + .35ch); text-indent: 0;
+        padding-left: calc(1mm + 5ch); text-indent: 0;
         font-family: "한양중고딕", "HYGothic-Medium", "맑은 고딕", sans-serif;
         font-size: 10pt; line-height: 1.45; font-weight: 400;
     }}

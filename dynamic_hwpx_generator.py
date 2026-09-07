@@ -148,8 +148,14 @@ def generate_dynamic_hwpx_bytes(teams_data):
         ET.register_namespace(prefix, uri)
 
     root = ET.fromstring(members[section_name])
-    first_detail = next(p for p in root.iter(_q(HP, "p")) if any("detail" in name for name in _field_names(p)))
-    base_char_id = first_detail.find(_q(HP, "run")).get("charPrIDRef", "0")
+    first_detail = next(
+        p for p in root.iter(_q(HP, "p"))
+        if len(_field_names(p)) == 1 and any("detail" in name for name in _field_names(p))
+    )
+    detail_runs = first_detail.findall(_q(HP, "run"))
+    # Run 0 is the '-' marker style; run 1 is the actual detail text style
+    # (한양중고딕). Comments must inherit the latter.
+    base_char_id = detail_runs[1].get("charPrIDRef", "0")
     comment_style_id = _add_sized_char_style(members, base_char_id, 1000)
     spacer_style_id = _add_sized_char_style(members, base_char_id, 500)
     active = [team for team in teams_data if team.get("this_week") or team.get("next_week")][:2]
