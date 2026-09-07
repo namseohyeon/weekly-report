@@ -201,7 +201,7 @@ def render_monthly_report():
                         st.markdown(f"&nbsp;&nbsp;○&nbsp;&nbsp;{html.escape(str(content))}", unsafe_allow_html=True)
                     if entry.get("comment", "").strip():
                         st.markdown(f'<div class="entry-comment">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{html.escape(entry["comment"])}</div>', unsafe_allow_html=True)
-                    edit_col, delete_col, empty_col = st.columns([1, 1, 2])
+                    edit_col, up_col, down_col, delete_col = st.columns([1.25, 1, 1, 1.25])
                     with edit_col:
                         with st.popover("✏️ 수정", use_container_width=True):
                             edited_title = st.text_input(
@@ -222,6 +222,22 @@ def render_monthly_report():
                                 entry["comment"] = edited_comment.strip()
                                 save_monthly_data(monthly)
                                 st.rerun()
+                    with up_col:
+                        if st.button(
+                            "↑ 위로", key=f"monthly_up_{category_key}_{entry_index}",
+                            disabled=entry_index == 0, use_container_width=True,
+                        ):
+                            entries[entry_index - 1], entries[entry_index] = entries[entry_index], entries[entry_index - 1]
+                            save_monthly_data(monthly)
+                            st.rerun()
+                    with down_col:
+                        if st.button(
+                            "↓ 아래로", key=f"monthly_down_{category_key}_{entry_index}",
+                            disabled=entry_index == len(entries) - 1, use_container_width=True,
+                        ):
+                            entries[entry_index], entries[entry_index + 1] = entries[entry_index + 1], entries[entry_index]
+                            save_monthly_data(monthly)
+                            st.rerun()
                     with delete_col:
                         if st.button("🗑️ 삭제", key=f"monthly_delete_{category_key}_{entry_index}", use_container_width=True):
                             monthly[category_key].pop(entry_index)
@@ -740,7 +756,7 @@ with tab2:
                         st.markdown(f"{prefix}{clean_detail}", unsafe_allow_html=True)
                     if entry.get("comment", "").strip():
                         st.markdown(f'<div class="entry-comment">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{html.escape(entry["comment"])}</div>', unsafe_allow_html=True)
-                    action_edit, action_delete, action_empty = st.columns([1, 1, 2])
+                    action_edit, action_up, action_down, action_delete = st.columns([1.25, 1, 1, 1.25])
                     revision = st.session_state.get("edit_popover_revision", 0)
                     with action_edit:
                         with st.popover("✏️ 수정", key=f"weekly_edit_{category_key}_{team_index}_{entry_index}_{revision}", use_container_width=True):
@@ -768,6 +784,26 @@ with tab2:
                                 st.session_state["edit_popover_revision"] = revision + 1
                                 st.session_state["target_tab"] = TAB_MANAGE
                                 st.rerun()
+                    with action_up:
+                        if st.button(
+                            "↑ 위로", key=f"weekly_up_{category_key}_{team_index}_{entry_index}",
+                            disabled=entry_index == 0, use_container_width=True,
+                        ):
+                            entries[entry_index - 1], entries[entry_index] = entries[entry_index], entries[entry_index - 1]
+                            save_data(st.session_state["reports_data"])
+                            queue_feedback(f"[{team['team_name']}] 항목 순서를 변경했습니다.")
+                            st.session_state["target_tab"] = TAB_MANAGE
+                            st.rerun()
+                    with action_down:
+                        if st.button(
+                            "↓ 아래로", key=f"weekly_down_{category_key}_{team_index}_{entry_index}",
+                            disabled=entry_index == len(entries) - 1, use_container_width=True,
+                        ):
+                            entries[entry_index], entries[entry_index + 1] = entries[entry_index + 1], entries[entry_index]
+                            save_data(st.session_state["reports_data"])
+                            queue_feedback(f"[{team['team_name']}] 항목 순서를 변경했습니다.")
+                            st.session_state["target_tab"] = TAB_MANAGE
+                            st.rerun()
                     with action_delete:
                         if st.button("🗑️ 삭제", key=f"weekly_delete_{category_key}_{team_index}_{entry_index}", use_container_width=True):
                             team[category_key].pop(entry_index)
