@@ -47,13 +47,54 @@ def load_state(report_type: str, local_file: str, default: Any) -> Any:
         response.raise_for_status()
         rows = response.json()
         return rows[0]["payload"] if rows else default
-    if os.path.exists(local_file):
+    period_file = os.path.join("data", "periods", f"{report_type}_{_period_start(report_type).isoformat()}.json")
+    candidate_files = [period_file, local_file]
+    for candidate_file in candidate_files:
+        if not os.path.exists(candidate_file):
+            continue
         try:
-            with open(local_file, "r", encoding="utf-8") as file:
+            with open(candidate_file, "r", encoding="utf-8") as file:
                 return json.load(file)
         except (OSError, json.JSONDecodeError):
             pass
     return default
+
+
+def load_state_for_period(report_type: str, period_start: datetime.date, default: Any) -> Any:
+    """Load an explicitly selected period without changing the current-period state."""
+    if not supabase_enabled():
+        period_file = os.path.join("data", "periods", f"{report_type}_{period_start.isoformat()}.json")
+        if os.path.exists(period_file):
+            try:
+                with open(period_file, "r", encoding="utf-8") as file:
+                    return json.load(file)
+            except (OSError, json.JSONDecodeError):
+                pass
+        return default
+    response = requests.get(_endpoint(), headers=_headers(), params={
+        "report_type": f"eq.{report_type}",
+        "period_start": f"eq.{period_start.isoformat()}",
+        "select": "payload",
+        "limit": "1",
+    }, timeout=10)
+    response.raise_for_status()
+    rows = response.json()
+    return rows[0]["payload"] if rows else default
+
+
+def save_state_for_period(report_type: str, period_start: datetime.date, payload: Any) -> None:
+    """Save a future/past period without overwriting the period currently on screen."""
+    if supabase_enabled():
+        response = requests.post(_endpoint(), headers=_headers("resolution=merge-duplicates,return=minimal"),
+            params={"on_conflict": "report_type,period_start"}, json={"report_type": report_type,
+            "period_start": period_start.isoformat(), "payload": payload,
+            "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}, timeout=10)
+        response.raise_for_status()
+        return
+    period_dir = os.path.join("data", "periods")
+    os.makedirs(period_dir, exist_ok=True)
+    with open(os.path.join(period_dir, f"{report_type}_{period_start.isoformat()}.json"), "w", encoding="utf-8") as file:
+        json.dump(payload, file, ensure_ascii=False, indent=2)
 
 
 def save_state(report_type: str, payload: Any, local_file: str) -> None:

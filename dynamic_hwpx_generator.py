@@ -27,7 +27,8 @@ def _clean_title(value):
 
 
 def _clean_detail(value):
-    return str(value or "").strip().lstrip("- ")
+    raw = str(value or "").strip()
+    return raw.startswith("-"), raw[1:].lstrip() if raw.startswith("-") else raw
 
 
 def _field_names(element):
@@ -54,6 +55,30 @@ def _plain_paragraph(prototype, segments):
     return paragraph
 
 
+def _set_char_style(paragraph, char_pr_id):
+    for run in paragraph.findall(_q(HP, "run")):
+        run.set("charPrIDRef", str(char_pr_id))
+    return paragraph
+
+
+def _add_sized_char_style(members, base_id, height):
+    header_name = "Contents/header.xml"
+    root = ET.fromstring(members[header_name])
+    char_properties = next(e for e in root.iter() if e.tag.endswith("charProperties"))
+    styles = [e for e in list(char_properties) if e.tag.endswith("charPr")]
+    base = next((e for e in styles if e.get("id") == str(base_id)), styles[0])
+    created = copy.deepcopy(base)
+    new_id = max(int(e.get("id", "0")) for e in styles) + 1
+    created.set("id", str(new_id))
+    created.set("height", str(height))
+    char_properties.append(created)
+    for count_name in ("itemCnt", "itemCount"):
+        if count_name in char_properties.attrib:
+            char_properties.set(count_name, str(len(styles) + 1))
+    members[header_name] = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    return new_id
+
+
 def _dated_title(entry, include_date):
     title = _clean_title(entry.get("title"))
     if include_date and title and entry.get("performance_date"):
@@ -65,7 +90,7 @@ def _dated_title(entry, include_date):
     return title
 
 
-def _replace_cell_content(cell, team_name, entries, include_date, team_field, title_field, detail_field):
+def _replace_cell_content(cell, team_name, entries, include_date, team_field, title_field, detail_field, comment_style_id, spacer_style_id):
     sublist = cell.find(_q(HP, "subList"))
     paragraphs = list(sublist.findall(_q(HP, "p")))
     title_index = next(i for i, p in enumerate(paragraphs) if title_field in _field_names(p))
@@ -76,15 +101,22 @@ def _replace_cell_content(cell, team_name, entries, include_date, team_field, ti
         sublist.remove(paragraph)
 
     created = 0
-    for entry in entries:
+    for entry_index, entry in enumerate(entries):
+        if entry_index:
+            sublist.append(_set_char_style(_plain_paragraph(detail_proto, ["", "", ""]), spacer_style_id))
         title = _dated_title(entry, include_date)
         details = [_clean_detail(d) for d in entry.get("details", [])]
-        details = [d for d in details if d]
+        details = [(has_dash, d) for has_dash, d in details if d]
         if title:
             sublist.append(_plain_paragraph(title_proto, ["ㅇ ", title, ""]))
             created += 1
-        for detail in details:
-            sublist.append(_plain_paragraph(detail_proto, ["  - ", detail, ""]))
+        for has_dash, detail in details:
+            marker = "  - " if has_dash else "     "
+            sublist.append(_plain_paragraph(detail_proto, [marker, detail, ""]))
+            created += 1
+        comment = str(entry.get("comment", "")).strip()
+        if comment:
+            sublist.append(_set_char_style(_plain_paragraph(detail_proto, ["     ", comment, ""]), comment_style_id))
             created += 1
     if not created:
         sublist.append(_plain_paragraph(detail_proto, ["-", "", ""]))
@@ -113,6 +145,10 @@ def generate_dynamic_hwpx_bytes(teams_data):
         ET.register_namespace(prefix, uri)
 
     root = ET.fromstring(members[section_name])
+    first_detail = next(p for p in root.iter(_q(HP, "p")) if any("detail" in name for name in _field_names(p)))
+    base_char_id = first_detail.find(_q(HP, "run")).get("charPrIDRef", "0")
+    comment_style_id = _add_sized_char_style(members, base_char_id, 1000)
+    spacer_style_id = _add_sized_char_style(members, base_char_id, 500)
     active = [team for team in teams_data if team.get("this_week") or team.get("next_week")][:2]
 
     today = datetime.datetime.now(ZoneInfo("Asia/Seoul")).date()
@@ -147,11 +183,11 @@ def generate_dynamic_hwpx_bytes(teams_data):
                 cell.find(_q(HP, "subList")).insert(0, copy.deepcopy(spacing_source))
         left_lines = _replace_cell_content(
             cells[0], team.get("team_name", ""), team.get("this_week", []), True,
-            team_field, f"this_title_{team_no:02d}_01", f"this_detail_{team_no:02d}_01",
+            team_field, f"this_title_{team_no:02d}_01", f"this_detail_{team_no:02d}_01", comment_style_id, spacer_style_id,
         )
         right_lines = _replace_cell_content(
             cells[1], team.get("team_name", ""), team.get("next_week", []), False,
-            team_field, f"this_title_{team_no:02d}_02", f"this_detail_{team_no:02d}_02",
+            team_field, f"this_title_{team_no:02d}_02", f"this_detail_{team_no:02d}_02", comment_style_id, spacer_style_id,
         )
         height = str(max(9000, 4200 + max(left_lines, right_lines) * 1900))
         for cell in cells:

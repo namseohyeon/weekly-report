@@ -37,6 +37,31 @@ def _plain_paragraph(prototype, segments):
     return paragraph
 
 
+def _set_char_style(paragraph, char_pr_id):
+    for run in paragraph.findall(_q("run")):
+        run.set("charPrIDRef", str(char_pr_id))
+    return paragraph
+
+
+def _add_sized_char_style(members, base_id, height):
+    header_name = "Contents/header.xml"
+    parser = ET.XMLParser(remove_blank_text=False, resolve_entities=False)
+    root = ET.fromstring(members[header_name], parser=parser)
+    char_properties = next(e for e in root.iter() if e.tag.endswith("charProperties"))
+    styles = [e for e in list(char_properties) if e.tag.endswith("charPr")]
+    base = next((e for e in styles if e.get("id") == str(base_id)), styles[0])
+    created = copy.deepcopy(base)
+    new_id = max(int(e.get("id", "0")) for e in styles) + 1
+    created.set("id", str(new_id))
+    created.set("height", str(height))
+    char_properties.append(created)
+    for count_name in ("itemCnt", "itemCount"):
+        if count_name in char_properties.attrib:
+            char_properties.set(count_name, str(len(styles) + 1))
+    members[header_name] = ET.tostring(root, encoding="utf-8", xml_declaration=True, standalone=True)
+    return new_id
+
+
 def _apply_hanging_indent(header_root, paragraph_widths):
     for para_pr in header_root.iter(f"{{{HH}}}paraPr"):
         base_width = paragraph_widths.get(para_pr.get("id"))
@@ -87,6 +112,9 @@ def generate_monthly_hwpx_bytes(month, report_data, department="AI혁신처"):
         blank_proto = paragraphs[0]
         title_proto = paragraphs[1]
         item_proto = paragraphs[2]
+        base_char_id = item_proto.findall(_q("run"))[-1].get("charPrIDRef", "0")
+        comment_style_id = _add_sized_char_style(members, base_char_id, 1000)
+        spacer_style_id = _add_sized_char_style(members, base_char_id, 500)
         spacer_proto = paragraphs[3] if len(paragraphs) > 3 else blank_proto
         for paragraph in list(paragraphs):
             sublist.remove(paragraph)
@@ -95,13 +123,16 @@ def generate_monthly_hwpx_bytes(month, report_data, department="AI혁신처"):
         entries = report_data.get(category, [])
         for entry_index, entry in enumerate(entries, start=1):
             if entry_index > 1:
-                sublist.append(_plain_paragraph(spacer_proto, [""]))
+                sublist.append(_set_char_style(_plain_paragraph(spacer_proto, [""]), spacer_style_id))
             title = str(entry.get("title", "")).strip()
             sublist.append(_plain_paragraph(title_proto, [f" {entry_index}. ", title]))
             for content in entry.get("contents", []):
                 content = str(content).strip().lstrip("○- ")
                 if content:
                     sublist.append(_plain_paragraph(item_proto, ["  ○ ", content]))
+            comment = str(entry.get("comment", "")).strip()
+            if comment:
+                sublist.append(_set_char_style(_plain_paragraph(item_proto, ["     ", comment]), comment_style_id))
 
         if not entries:
             sublist.append(_plain_paragraph(title_proto, [" -", ""]))

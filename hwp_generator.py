@@ -468,6 +468,7 @@ class HWPXGenerator:
         def render_entries(entries, include_date=False):
             parts = []
             for entry in entries:
+                entry_parts = []
                 title = escape(entry.get("title", "").strip())
                 if title:
                     if include_date and entry.get("performance_date"):
@@ -476,11 +477,20 @@ class HWPXGenerator:
                             title += f"({completed.month}.{completed.day})"
                         except (TypeError, ValueError):
                             pass
-                    parts.append(f'<div class="report-title">ㅇ&nbsp;{title}</div>')
+                    entry_parts.append(f'<div class="report-title">ㅇ&nbsp;{title}</div>')
                 for detail in entry.get("details", []):
-                    detail = escape(detail.strip().lstrip("- "))
+                    raw_detail = detail.strip()
+                    has_dash = raw_detail.startswith("-")
+                    detail = escape(raw_detail[1:].lstrip() if has_dash else raw_detail)
                     if detail:
-                        parts.append(f'<div class="report-detail">&nbsp;&nbsp;-&nbsp;{detail}</div>')
+                        detail_class = "report-detail has-dash" if has_dash else "report-detail no-dash"
+                        marker = "&nbsp;&nbsp;-&nbsp;" if has_dash else ""
+                        entry_parts.append(f'<div class="{detail_class}">{marker}{detail}</div>')
+                comment = escape(str(entry.get("comment", "")).strip()).replace("\n", "<br>")
+                if comment:
+                    entry_parts.append(f'<div class="report-comment">{comment}</div>')
+                if entry_parts:
+                    parts.append(f'<div class="report-entry">{"".join(entry_parts)}</div>')
             return "".join(parts) or '<div class="empty-report">-</div>'
 
         def render_rows(page_teams):
@@ -561,11 +571,19 @@ class HWPXGenerator:
     .report-table th, .report-table td {{ width: auto; min-width: 0; }}
     .team-row {{ break-inside: avoid; page-break-inside: avoid; }}
     .team-name {{ font-weight: 700; margin-bottom: 1mm; }}
+    .report-entry + .report-entry {{ margin-top: 5pt; }}
     .report-title {{ font-weight: 700; padding-left: 2.2em; text-indent: calc(1mm - 2.2em); }}
     .report-detail {{
-        padding-left: 3.1em; text-indent: calc(1mm - 3.1em); font-weight: 400;
+        padding-left: 3.1em; font-weight: 400;
         font-family: "한양중고딕", "HYGothic-Medium", "맑은 고딕", sans-serif;
         font-size: 12pt;
+    }}
+    .report-detail.has-dash {{ text-indent: calc(1mm - 3.1em); }}
+    .report-detail.no-dash {{ text-indent: 0; }}
+    .report-comment {{
+        padding-left: calc(3.1em + 1ch); text-indent: 0;
+        font-family: "한양중고딕", "HYGothic-Medium", "맑은 고딕", sans-serif;
+        font-size: 10pt; line-height: 1.45; font-weight: 400;
     }}
     .empty-report {{
         color: #777; font-family: "휴먼명조", "Human MyungJo", "바탕", serif;

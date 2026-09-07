@@ -5,6 +5,7 @@ import datetime
 import importlib
 import copy
 import html
+import streamlit.components.v1 as components
 import hwp_generator
 importlib.reload(hwp_generator)
 from hwp_generator import HWPXGenerator
@@ -14,7 +15,39 @@ from dynamic_hwpx_generator import generate_dynamic_hwpx_bytes
 import monthly_hwpx_generator
 importlib.reload(monthly_hwpx_generator)
 from monthly_hwpx_generator import generate_monthly_hwpx_bytes
-from storage_backend import cleanup_old_states, load_state, save_state, supabase_enabled
+from storage_backend import cleanup_old_states, load_state, load_state_for_period, save_state, save_state_for_period, supabase_enabled
+
+
+def enable_google_analytics():
+    """Load GA4 in the top-level Streamlit page when a Measurement ID is configured."""
+    try:
+        measurement_id = str(st.secrets.get("GA_MEASUREMENT_ID", "")).strip()
+    except Exception:
+        measurement_id = os.getenv("GA_MEASUREMENT_ID", "").strip()
+    if not measurement_id.startswith("G-"):
+        return
+    safe_id = json.dumps(measurement_id)
+    components.html(
+        f"""
+        <script>
+        (() => {{
+          const id = {safe_id};
+          const doc = window.parent.document;
+          if (doc.getElementById('weekly-report-ga4')) return;
+          const script = doc.createElement('script');
+          script.id = 'weekly-report-ga4';
+          script.async = true;
+          script.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(id);
+          doc.head.appendChild(script);
+          window.parent.dataLayer = window.parent.dataLayer || [];
+          window.parent.gtag = window.parent.gtag || function() {{ window.parent.dataLayer.push(arguments); }};
+          window.parent.gtag('js', new Date());
+          window.parent.gtag('config', id, {{ send_page_view: true }});
+        }})();
+        </script>
+        """,
+        height=0,
+    )
 
 # 페이지 구성 설정
 st.set_page_config(
@@ -22,6 +55,7 @@ st.set_page_config(
     page_icon="📝",
     layout="wide"
 )
+enable_google_analytics()
 
 if supabase_enabled():
     try:
@@ -126,6 +160,11 @@ def render_monthly_report():
                     placeholder="한 줄에 한 항목씩 입력하세요",
                     height=140,
                 )
+                comment = st.text_area(
+                    "주석 (선택)",
+                    placeholder="*입력필요",
+                    height=90,
+                )
                 if st.form_submit_button("보고 항목 추가", type="primary", use_container_width=True):
                     contents = [line.strip() for line in contents_text.splitlines() if line.strip()]
                     if not title.strip():
@@ -133,7 +172,7 @@ def render_monthly_report():
                     elif not contents:
                         st.error("세부내용을 한 줄 이상 입력해 주세요.")
                     else:
-                        monthly[category].append({"title": title.strip(), "contents": contents})
+                        monthly[category].append({"title": title.strip(), "contents": contents, "comment": comment.strip()})
                         save_monthly_data(monthly)
                         category_label = "추진실적" if category == "performance" else "추진계획"
                         st.toast(f"{category_label}을 추가했습니다.", icon="✅")
@@ -160,6 +199,8 @@ def render_monthly_report():
                     )
                     for content in entry.get("contents", []):
                         st.markdown(f"&nbsp;&nbsp;○&nbsp;&nbsp;{html.escape(str(content))}", unsafe_allow_html=True)
+                    if entry.get("comment", "").strip():
+                        st.markdown(f'<div class="entry-comment">{html.escape(entry["comment"])}</div>', unsafe_allow_html=True)
                     edit_col, delete_col, empty_col = st.columns([1, 1, 2])
                     with edit_col:
                         with st.popover("✏️ 수정", use_container_width=True):
@@ -171,9 +212,14 @@ def render_monthly_report():
                                 "세부내용", value="\n".join(entry.get("contents", [])), height=180,
                                 key=f"monthly_edit_contents_{category_key}_{entry_index}",
                             )
+                            edited_comment = st.text_area(
+                                "주석 (선택)", value=entry.get("comment", ""), height=110,
+                                key=f"monthly_edit_comment_{category_key}_{entry_index}",
+                            )
                             if st.button("수정 저장", key=f"monthly_save_{category_key}_{entry_index}", type="primary", use_container_width=True):
                                 entry["title"] = edited_title.strip()
                                 entry["contents"] = [line.strip() for line in edited_contents.splitlines() if line.strip()]
+                                entry["comment"] = edited_comment.strip()
                                 save_monthly_data(monthly)
                                 st.rerun()
                     with delete_col:
@@ -240,7 +286,8 @@ def render_monthly_report():
                 )
                 blocks.append(
                     f'<div class="monthly-entry"><div class="monthly-title">'
-                    f'&nbsp;{entry_index}.&nbsp;{title}</div>{contents}</div>'
+                    f'&nbsp;{entry_index}.&nbsp;{title}</div>{contents}'
+                    f'<div class="monthly-comment">{html.escape(str(entry.get("comment", "")).strip()) if str(entry.get("comment", "")).strip() else ""}</div></div>'
                 )
             return "".join(blocks)
 
@@ -273,9 +320,11 @@ def render_monthly_report():
               .monthly-period-row th {{ padding: 3px 5px; font-size: 21px; line-height: 1.5; text-align: left; }}
               .monthly-report-table tbody tr {{ height: 92.2%; }}
               .monthly-report-table td {{ padding: 2px 3px; vertical-align: top; font-size: 17px; line-height: 1.55; }}
-              .monthly-entry + .monthly-entry {{ margin-top: 20px; }}
+              .monthly-entry + .monthly-entry {{ margin-top: 5pt; }}
               .monthly-title {{ font-size: 20px; font-weight: 700; margin: 0 0 7px; padding-left: 1.8em; text-indent: calc(1mm - 1.8em); line-height: 1.45; }}
               .monthly-item {{ font-size: 17px; margin: 3px 0 0; padding-left: 3.1em; text-indent: calc(1mm - 3.1em); line-height: 1.55; }}
+              .monthly-comment {{ min-height: 0; margin: 2px 0 0; padding-left: 3.7em; font-family: "한양중고딕", "HY중고딕", sans-serif; font-size: 10pt; line-height: 1.45; white-space: pre-wrap; }}
+              .monthly-comment:empty {{ display: none; }}
               .monthly-empty {{ color: #555; }}
               @media (max-width: 700px) {{ .monthly-page {{ aspect-ratio: auto; min-height: 520px; padding: 12px; }} .monthly-department-row th {{ font-size: 18px; }} .monthly-period-row th {{ font-size: 14px; }} .monthly-report-table td {{ font-size: 14px; }} .monthly-title {{ font-size: 16px; }} .monthly-item {{ margin-left: 10px; font-size: 14px; }} }}
             </style>
@@ -365,6 +414,7 @@ st.markdown("""
     .monthly-entry-badge.plan { color: #2455a4; background: #e6efff; }
     .monthly-list-title { margin: 8px 0 4px; color: #172b4d; font-size: 18px; font-weight: 800; }
     .weekly-entry-author { margin: -1px 0 10px; color: #718096; font-size: 13px; font-style: italic; }
+    .entry-comment { margin: 4px 0 8px 3.7em; color: #596579; font-family: "한양중고딕", "HY중고딕", sans-serif; font-size: 10pt; white-space: pre-wrap; }
     @media (max-width: 700px) { [data-testid="stMainBlockContainer"] { padding-left: 1rem; padding-right: 1rem; } .monthly-hero { align-items: flex-start; flex-direction: column; } }
     .stButton>button {
         border-radius: 6px;
@@ -449,8 +499,71 @@ def render_rollover_controls():
         for team_idx, team in enumerate(st.session_state["reports_data"])
         for entry_idx, entry in enumerate(team.get("next_week", []))
     ]
-    st.markdown("### 🔄 다음 주 계획을 이번 주 실적으로 가져오기")
-    st.caption(f"웹에 저장된 다음 주 계획 {len(next_week_items)}건을 모두 새 주의 이번 주 실적으로 옮깁니다.")
+    current_monday = datetime.date.today() - datetime.timedelta(days=datetime.date.today().weekday())
+    previous_monday = current_monday - datetime.timedelta(days=7)
+    previous_reports = load_state_for_period("weekly", previous_monday, [])
+    previous_plan_items = [
+        (team.get("team_name", ""), entry)
+        for team in previous_reports
+        for entry in team.get("next_week", [])
+    ]
+
+    if previous_plan_items:
+        with st.container(border=True):
+            st.markdown("#### 지난주 계획 가져오기")
+            st.caption(
+                f"{previous_monday.isoformat()} 주차의 다음 주 계획 {len(previous_plan_items)}건을 "
+                "현재 주의 이번 주 실적으로 가져올 수 있습니다. 이미 가져온 항목은 제외됩니다."
+            )
+            if st.button(
+                "지난주 계획을 이번 주 실적으로 가져오기",
+                type="primary",
+                use_container_width=True,
+                key="import_previous_week_plans",
+            ):
+                current_by_team = {
+                    team.get("team_name", ""): team for team in st.session_state["reports_data"]
+                }
+                imported = 0
+                for previous_team in previous_reports:
+                    team_name = previous_team.get("team_name", "").strip()
+                    if not team_name:
+                        continue
+                    target = current_by_team.get(team_name)
+                    if target is None:
+                        target = {"team_name": team_name, "this_week": [], "next_week": []}
+                        st.session_state["reports_data"].append(target)
+                        current_by_team[team_name] = target
+                    existing = {
+                        json.dumps({
+                            "title": item.get("title", ""),
+                            "details": item.get("details", []),
+                            "comment": item.get("comment", ""),
+                        }, ensure_ascii=False, sort_keys=True)
+                        for item in target.get("this_week", [])
+                    }
+                    for source in previous_team.get("next_week", []):
+                        signature = json.dumps({
+                            "title": source.get("title", ""),
+                            "details": source.get("details", []),
+                            "comment": source.get("comment", ""),
+                        }, ensure_ascii=False, sort_keys=True)
+                        if signature in existing:
+                            continue
+                        copied = copy.deepcopy(source)
+                        copied["performance_date"] = ""
+                        copied["rolled_from"] = previous_monday.isoformat()
+                        target.setdefault("this_week", []).append(copied)
+                        existing.add(signature)
+                        imported += 1
+                save_data(st.session_state["reports_data"])
+                queue_feedback(f"지난주 계획 {imported}건을 이번 주 실적으로 가져왔습니다.")
+                st.session_state["target_tab"] = TAB_MANAGE
+                st.rerun()
+
+    st.divider()
+    st.markdown("### 🔄 다음 주 보고서 미리 만들기")
+    st.caption(f"현재 다음 주 계획 {len(next_week_items)}건으로 다음 주차의 이번 주 실적을 미리 만듭니다. 현재 보고서는 유지됩니다.")
     if not next_week_items:
         st.warning(
             "웹에 저장된 다음 주 계획이 없어 가져오기 버튼을 사용할 수 없습니다. "
@@ -461,7 +574,7 @@ def render_rollover_controls():
         key="review_confirm_rollover",
     )
     if st.button(
-        "모든 다음 주 계획을 이번 주 실적으로 가져오기",
+        "다음 주 계획으로 다음 주차 보고서 만들기",
         disabled=not next_week_items or not confirm_rollover,
         type="primary",
         key="review_rollover_button",
@@ -484,10 +597,13 @@ def render_rollover_controls():
                 "next_week": [],
             })
 
-        st.session_state["reports_data"] = rolled_data
-        save_data(rolled_data)
-        queue_feedback(f"새 주 보고서를 만들었습니다. 이전 보고서: {archive_name}")
-        st.session_state["target_tab"] = TAB_MANAGE
+        next_monday = current_monday + datetime.timedelta(days=7)
+        save_state_for_period("weekly", next_monday, rolled_data)
+        queue_feedback(
+            f"{next_monday.isoformat()} 주차 보고서를 미리 만들었습니다. "
+            f"현재 보고서는 그대로 유지됩니다. 보관 파일: {archive_name}"
+        )
+        st.session_state["target_tab"] = TAB_REVIEW
         st.rerun()
 
 # --- TAB 2: 보고서 작성·수정 ---
@@ -561,8 +677,14 @@ with tab2:
             entry_title = st.text_input("제목", key="top_entry_title")
             entry_details = st.text_area(
                 "세부내용",
-                placeholder="- (작성필요)\n- (작성필요)",
+                placeholder="- 입력필요",
                 key="top_entry_details",
+            )
+            entry_comment = st.text_area(
+                "주석 (선택)",
+                placeholder="*입력필요",
+                height=90,
+                key="top_entry_comment",
             )
             add_entry = st.form_submit_button(
                 f"{entry_category} 추가",
@@ -578,6 +700,7 @@ with tab2:
                         "author": entry_author.strip(),
                         "title": entry_title.strip(),
                         "details": [line.strip() for line in entry_details.splitlines() if line.strip()],
+                        "comment": entry_comment.strip(),
                         "performance_date": entry_date.isoformat() if entry_date else "",
                     })
                     save_data(st.session_state["reports_data"])
@@ -609,8 +732,13 @@ with tab2:
                         unsafe_allow_html=True,
                     )
                     for detail in entry.get("details", []):
-                        clean_detail = html.escape(str(detail).strip().lstrip("- "))
-                        st.markdown(f"&nbsp;&nbsp;-&nbsp;&nbsp;{clean_detail}", unsafe_allow_html=True)
+                        raw_detail = str(detail).strip()
+                        has_dash = raw_detail.startswith("-")
+                        clean_detail = html.escape(raw_detail[1:].lstrip() if has_dash else raw_detail)
+                        prefix = "&nbsp;&nbsp;-&nbsp;&nbsp;" if has_dash else "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+                        st.markdown(f"{prefix}{clean_detail}", unsafe_allow_html=True)
+                    if entry.get("comment", "").strip():
+                        st.markdown(f'<div class="entry-comment">{html.escape(entry["comment"])}</div>', unsafe_allow_html=True)
                     action_edit, action_delete, action_empty = st.columns([1, 1, 2])
                     revision = st.session_state.get("edit_popover_revision", 0)
                     with action_edit:
@@ -624,11 +752,13 @@ with tab2:
                                 )
                             edit_title = st.text_input("제목", value=entry.get("title", ""), key=f"weekly_title_{category_key}_{team_index}_{entry_index}")
                             edit_details = st.text_area("세부내용", value="\n".join(entry.get("details", [])), height=180, key=f"weekly_details_{category_key}_{team_index}_{entry_index}")
+                            edit_comment = st.text_area("주석 (선택)", value=entry.get("comment", ""), height=110, key=f"weekly_comment_{category_key}_{team_index}_{entry_index}")
                             if st.button("수정 저장", key=f"weekly_save_{category_key}_{team_index}_{entry_index}", type="primary", use_container_width=True):
                                 entry.update({
                                     "author": edit_author.strip(),
                                     "title": edit_title.strip(),
                                     "details": [line.strip() for line in edit_details.splitlines() if line.strip()],
+                                    "comment": edit_comment.strip(),
                                     "performance_date": edit_date.isoformat() if include_date and edit_date else "",
                                 })
                                 save_data(st.session_state["reports_data"])
