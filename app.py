@@ -200,7 +200,7 @@ def render_monthly_report():
                     for content in entry.get("contents", []):
                         st.markdown(f"&nbsp;&nbsp;○&nbsp;&nbsp;{html.escape(str(content))}", unsafe_allow_html=True)
                     if entry.get("comment", "").strip():
-                        st.markdown(f'<div class="entry-comment">{html.escape(entry["comment"])}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="entry-comment">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{html.escape(entry["comment"])}</div>', unsafe_allow_html=True)
                     edit_col, delete_col, empty_col = st.columns([1, 1, 2])
                     with edit_col:
                         with st.popover("✏️ 수정", use_container_width=True):
@@ -323,7 +323,7 @@ def render_monthly_report():
               .monthly-entry + .monthly-entry {{ margin-top: 5pt; }}
               .monthly-title {{ font-size: 20px; font-weight: 700; margin: 0 0 7px; padding-left: 1.8em; text-indent: calc(1mm - 1.8em); line-height: 1.45; }}
               .monthly-item {{ font-size: 17px; margin: 3px 0 0; padding-left: 3.1em; text-indent: calc(1mm - 3.1em); line-height: 1.55; }}
-              .monthly-comment {{ min-height: 0; margin: 2px 0 0; padding-left: 3.7em; font-family: "한양중고딕", "HY중고딕", sans-serif; font-size: 10pt; line-height: 1.45; white-space: pre-wrap; }}
+              .monthly-comment {{ min-height: 0; margin: 2px 0 0; padding-left: 3.45em; font-family: "한양중고딕", "HY중고딕", sans-serif; font-size: 10pt; line-height: 1.45; white-space: pre-wrap; }}
               .monthly-comment:empty {{ display: none; }}
               .monthly-empty {{ color: #555; }}
               @media (max-width: 700px) {{ .monthly-page {{ aspect-ratio: auto; min-height: 520px; padding: 12px; }} .monthly-department-row th {{ font-size: 18px; }} .monthly-period-row th {{ font-size: 14px; }} .monthly-report-table td {{ font-size: 14px; }} .monthly-title {{ font-size: 16px; }} .monthly-item {{ margin-left: 10px; font-size: 14px; }} }}
@@ -414,7 +414,7 @@ st.markdown("""
     .monthly-entry-badge.plan { color: #2455a4; background: #e6efff; }
     .monthly-list-title { margin: 8px 0 4px; color: #172b4d; font-size: 18px; font-weight: 800; }
     .weekly-entry-author { margin: -1px 0 10px; color: #718096; font-size: 13px; font-style: italic; }
-    .entry-comment { margin: 4px 0 8px 3.7em; color: #596579; font-family: "한양중고딕", "HY중고딕", sans-serif; font-size: 10pt; white-space: pre-wrap; }
+    .entry-comment { margin: 4px 0 8px; color: #596579; font-family: "한양중고딕", "HY중고딕", sans-serif; font-size: 10pt; white-space: pre-wrap; }
     @media (max-width: 700px) { [data-testid="stMainBlockContainer"] { padding-left: 1rem; padding-right: 1rem; } .monthly-hero { align-items: flex-start; flex-direction: column; } }
     .stButton>button {
         border-radius: 6px;
@@ -702,6 +702,7 @@ with tab2:
                         "details": [line.strip() for line in entry_details.splitlines() if line.strip()],
                         "comment": entry_comment.strip(),
                         "performance_date": entry_date.isoformat() if entry_date else "",
+                        "detail_markers_explicit": True,
                     })
                     save_data(st.session_state["reports_data"])
                     queue_feedback(f"[{selected_manage_team}] {entry_category}을 추가했습니다.")
@@ -733,12 +734,12 @@ with tab2:
                     )
                     for detail in entry.get("details", []):
                         raw_detail = str(detail).strip()
-                        has_dash = raw_detail.startswith("-")
-                        clean_detail = html.escape(raw_detail[1:].lstrip() if has_dash else raw_detail)
+                        has_dash = raw_detail.startswith("-") or not entry.get("detail_markers_explicit", False)
+                        clean_detail = html.escape(raw_detail[1:].lstrip() if raw_detail.startswith("-") else raw_detail)
                         prefix = "&nbsp;&nbsp;-&nbsp;&nbsp;" if has_dash else "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
                         st.markdown(f"{prefix}{clean_detail}", unsafe_allow_html=True)
                     if entry.get("comment", "").strip():
-                        st.markdown(f'<div class="entry-comment">{html.escape(entry["comment"])}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="entry-comment">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{html.escape(entry["comment"])}</div>', unsafe_allow_html=True)
                     action_edit, action_delete, action_empty = st.columns([1, 1, 2])
                     revision = st.session_state.get("edit_popover_revision", 0)
                     with action_edit:
@@ -760,6 +761,7 @@ with tab2:
                                     "details": [line.strip() for line in edit_details.splitlines() if line.strip()],
                                     "comment": edit_comment.strip(),
                                     "performance_date": edit_date.isoformat() if include_date and edit_date else "",
+                                    "detail_markers_explicit": True,
                                 })
                                 save_data(st.session_state["reports_data"])
                                 queue_feedback(f"[{team['team_name']}] {heading}을 수정했습니다.")

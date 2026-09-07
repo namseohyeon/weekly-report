@@ -132,7 +132,7 @@ def generate_monthly_hwpx_bytes(month, report_data, department="AI혁신처"):
                     sublist.append(_plain_paragraph(item_proto, ["  ○ ", content]))
             comment = str(entry.get("comment", "")).strip()
             if comment:
-                sublist.append(_set_char_style(_plain_paragraph(item_proto, ["     ", comment]), comment_style_id))
+                sublist.append(_set_char_style(_plain_paragraph(item_proto, ["   ", comment]), comment_style_id))
 
         if not entries:
             sublist.append(_plain_paragraph(title_proto, [" -", ""]))

@@ -480,7 +480,7 @@ class HWPXGenerator:
                     entry_parts.append(f'<div class="report-title">ㅇ&nbsp;{title}</div>')
                 for detail in entry.get("details", []):
                     raw_detail = detail.strip()
-                    has_dash = raw_detail.startswith("-")
+                    has_dash = raw_detail.startswith("-") or not entry.get("detail_markers_explicit", False)
                     detail = escape(raw_detail[1:].lstrip() if has_dash else raw_detail)
                     if detail:
                         detail_class = "report-detail has-dash" if has_dash else "report-detail no-dash"
@@ -581,7 +581,7 @@ class HWPXGenerator:
     .report-detail.has-dash {{ text-indent: calc(1mm - 3.1em); }}
     .report-detail.no-dash {{ text-indent: 0; }}
     .report-comment {{
-        padding-left: calc(3.1em + 1ch); text-indent: 0;
+        padding-left: calc(3.1em + .35ch); text-indent: 0;
         font-family: "한양중고딕", "HYGothic-Medium", "맑은 고딕", sans-serif;
         font-size: 10pt; line-height: 1.45; font-weight: 400;
     }}

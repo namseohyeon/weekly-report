@@ -26,9 +26,9 @@ def _clean_title(value):
     return title
 
 
-def _clean_detail(value):
+def _clean_detail(value, legacy_auto_dash=False):
     raw = str(value or "").strip()
-    return raw.startswith("-"), raw[1:].lstrip() if raw.startswith("-") else raw
+    return raw.startswith("-") or legacy_auto_dash, raw[1:].lstrip() if raw.startswith("-") else raw
 
 
 def _field_names(element):
@@ -105,7 +105,8 @@ def _replace_cell_content(cell, team_name, entries, include_date, team_field, ti
         if entry_index:
             sublist.append(_set_char_style(_plain_paragraph(detail_proto, ["", "", ""]), spacer_style_id))
         title = _dated_title(entry, include_date)
-        details = [_clean_detail(d) for d in entry.get("details", [])]
+        legacy_auto_dash = not entry.get("detail_markers_explicit", False)
+        details = [_clean_detail(d, legacy_auto_dash) for d in entry.get("details", [])]
         details = [(has_dash, d) for has_dash, d in details if d]
         if title:
             sublist.append(_plain_paragraph(title_proto, ["ㅇ ", title, ""]))
@@ -116,7 +117,9 @@ def _replace_cell_content(cell, team_name, entries, include_date, team_field, ti
             created += 1
         comment = str(entry.get("comment", "")).strip()
         if comment:
-            sublist.append(_set_char_style(_plain_paragraph(detail_proto, ["     ", comment, ""]), comment_style_id))
+            # The template paragraph already contributes two spaces of indentation.
+            # Three literal spaces place the comment one space after the detail text start.
+            sublist.append(_set_char_style(_plain_paragraph(detail_proto, ["   ", comment, ""]), comment_style_id))
             created += 1
     if not created:
         sublist.append(_plain_paragraph(detail_proto, ["-", "", ""]))
