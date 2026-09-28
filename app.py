@@ -355,7 +355,8 @@ def render_monthly_report():
         latest_monthly_row = next(
             (
                 row for row in prior_monthly_rows
-                if isinstance(row.get("payload"), dict) and row["payload"].get("plan")
+                if isinstance(row.get("payload"), dict)
+                and (row["payload"].get("plan") or row["payload"].get("performance"))
             ),
             None,
         )
@@ -363,14 +364,20 @@ def render_monthly_report():
             datetime.date.fromisoformat(latest_monthly_row["period_start"])
             if latest_monthly_row else None
         )
-        previous_plans = latest_monthly_row["payload"].get("plan", []) if latest_monthly_row else []
+        previous_payload = latest_monthly_row["payload"] if latest_monthly_row else {}
+        if previous_payload.get("plan"):
+            previous_plans = previous_payload["plan"]
+            previous_source_label = "추진계획"
+        else:
+            previous_plans = previous_payload.get("performance", [])
+            previous_source_label = "추진실적"
 
         if previous_plans:
             with st.container(border=True):
                 st.markdown("#### 지난달 계획 가져오기")
                 st.caption(
                     f"가장 최근 자료인 {previous_month_start.year}년 {previous_month_start.month}월의 "
-                    f"추진계획 {len(previous_plans)}건을 "
+                    f"{previous_source_label} {len(previous_plans)}건을 "
                     f"{current_month_start.month}월 추진실적으로 가져옵니다. 기존 실적은 유지됩니다."
                 )
                 if st.button(
@@ -405,7 +412,7 @@ def render_monthly_report():
                     st.toast(f"지난달 계획 {imported}건을 이번 달 실적으로 가져왔습니다.", icon="✅")
                     st.rerun()
         else:
-            st.info("이전 월간보고 중 가져올 추진계획이 있는 자료가 없습니다.")
+            st.info("이전 월간보고 중 가져올 추진계획 또는 추진실적 자료가 없습니다.")
 
         st.divider()
         st.markdown("#### 다음 달 보고서 미리 만들기")
