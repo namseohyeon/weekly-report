@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -80,6 +81,36 @@ def load_state_for_period(report_type: str, period_start: datetime.date, default
     response.raise_for_status()
     rows = response.json()
     return rows[0]["payload"] if rows else default
+
+
+def load_prior_states(
+    report_type: str, before_period: datetime.date, limit: int = 24
+) -> list[dict[str, Any]]:
+    """Return older report states in newest-first order."""
+    if supabase_enabled():
+        response = requests.get(_endpoint(), headers=_headers(), params={
+            "report_type": f"eq.{report_type}",
+            "period_start": f"lt.{before_period.isoformat()}",
+            "select": "period_start,payload",
+            "order": "period_start.desc",
+            "limit": str(limit),
+        }, timeout=10)
+        response.raise_for_status()
+        return response.json()
+
+    rows = []
+    period_dir = Path("data") / "periods"
+    for path in period_dir.glob(f"{report_type}_*.json") if period_dir.exists() else []:
+        try:
+            period = datetime.date.fromisoformat(path.stem.removeprefix(f"{report_type}_"))
+            if period >= before_period:
+                continue
+            with path.open("r", encoding="utf-8") as file:
+                rows.append({"period_start": period.isoformat(), "payload": json.load(file)})
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+    rows.sort(key=lambda row: row["period_start"], reverse=True)
+    return rows[:limit]
 
 
 def save_state_for_period(report_type: str, period_start: datetime.date, payload: Any) -> None:

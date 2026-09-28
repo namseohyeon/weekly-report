@@ -15,7 +15,7 @@ from dynamic_hwpx_generator import generate_dynamic_hwpx_bytes
 import monthly_hwpx_generator
 importlib.reload(monthly_hwpx_generator)
 from monthly_hwpx_generator import generate_monthly_hwpx_bytes
-from storage_backend import cleanup_old_states, load_state, load_state_for_period, save_state, save_state_for_period, supabase_enabled
+from storage_backend import cleanup_old_states, load_prior_states, load_state, save_state, save_state_for_period, supabase_enabled
 
 
 def enable_google_analytics():
@@ -351,16 +351,26 @@ def render_monthly_report():
     with rollover_tab:
         st.subheader("🔄 다음 달로 이월")
         current_month_start = datetime.date(today.year, today.month, 1)
-        previous_month_end = current_month_start - datetime.timedelta(days=1)
-        previous_month_start = previous_month_end.replace(day=1)
-        previous_monthly = load_state_for_period("monthly", previous_month_start, {})
-        previous_plans = previous_monthly.get("plan", []) if isinstance(previous_monthly, dict) else []
+        prior_monthly_rows = load_prior_states("monthly", current_month_start)
+        latest_monthly_row = next(
+            (
+                row for row in prior_monthly_rows
+                if isinstance(row.get("payload"), dict) and row["payload"].get("plan")
+            ),
+            None,
+        )
+        previous_month_start = (
+            datetime.date.fromisoformat(latest_monthly_row["period_start"])
+            if latest_monthly_row else None
+        )
+        previous_plans = latest_monthly_row["payload"].get("plan", []) if latest_monthly_row else []
 
         if previous_plans:
             with st.container(border=True):
                 st.markdown("#### 지난달 계획 가져오기")
                 st.caption(
-                    f"{previous_month_start.month}월 추진계획 {len(previous_plans)}건을 "
+                    f"가장 최근 자료인 {previous_month_start.year}년 {previous_month_start.month}월의 "
+                    f"추진계획 {len(previous_plans)}건을 "
                     f"{current_month_start.month}월 추진실적으로 가져옵니다. 기존 실적은 유지됩니다."
                 )
                 if st.button(
@@ -395,7 +405,7 @@ def render_monthly_report():
                     st.toast(f"지난달 계획 {imported}건을 이번 달 실적으로 가져왔습니다.", icon="✅")
                     st.rerun()
         else:
-            st.info(f"{previous_month_start.month}월에 저장된 추진계획이 없습니다.")
+            st.info("이전 월간보고 중 가져올 추진계획이 있는 자료가 없습니다.")
 
         st.divider()
         st.markdown("#### 다음 달 보고서 미리 만들기")
@@ -573,8 +583,20 @@ def render_rollover_controls():
         for entry_idx, entry in enumerate(team.get("next_week", []))
     ]
     current_monday = datetime.date.today() - datetime.timedelta(days=datetime.date.today().weekday())
-    previous_monday = current_monday - datetime.timedelta(days=7)
-    previous_reports = load_state_for_period("weekly", previous_monday, [])
+    prior_weekly_rows = load_prior_states("weekly", current_monday)
+    latest_weekly_row = next(
+        (
+            row for row in prior_weekly_rows
+            if isinstance(row.get("payload"), list)
+            and any(team.get("next_week") for team in row["payload"])
+        ),
+        None,
+    )
+    previous_monday = (
+        datetime.date.fromisoformat(latest_weekly_row["period_start"])
+        if latest_weekly_row else None
+    )
+    previous_reports = latest_weekly_row["payload"] if latest_weekly_row else []
     previous_plan_items = [
         (team.get("team_name", ""), entry)
         for team in previous_reports
@@ -585,7 +607,8 @@ def render_rollover_controls():
         with st.container(border=True):
             st.markdown("#### 지난주 계획 가져오기")
             st.caption(
-                f"{previous_monday.isoformat()} 주차의 다음 주 계획 {len(previous_plan_items)}건을 "
+                f"가장 최근 자료인 {previous_monday.isoformat()} 주차의 다음 주 계획 "
+                f"{len(previous_plan_items)}건을 "
                 "현재 주의 이번 주 실적으로 가져올 수 있습니다. 이미 가져온 항목은 제외됩니다."
             )
             if st.button(
