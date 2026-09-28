@@ -350,7 +350,56 @@ def render_monthly_report():
 
     with rollover_tab:
         st.subheader("🔄 다음 달로 이월")
-        st.caption("현재 추진계획을 다음 달의 추진실적으로 옮기고 현재 추진실적은 비웁니다.")
+        current_month_start = datetime.date(today.year, today.month, 1)
+        previous_month_end = current_month_start - datetime.timedelta(days=1)
+        previous_month_start = previous_month_end.replace(day=1)
+        previous_monthly = load_state_for_period("monthly", previous_month_start, {})
+        previous_plans = previous_monthly.get("plan", []) if isinstance(previous_monthly, dict) else []
+
+        if previous_plans:
+            with st.container(border=True):
+                st.markdown("#### 지난달 계획 가져오기")
+                st.caption(
+                    f"{previous_month_start.month}월 추진계획 {len(previous_plans)}건을 "
+                    f"{current_month_start.month}월 추진실적으로 가져옵니다. 기존 실적은 유지됩니다."
+                )
+                if st.button(
+                    "지난달 계획을 이번 달 실적으로 가져오기",
+                    type="primary",
+                    use_container_width=True,
+                    key="monthly_import_previous_plans",
+                ):
+                    existing = {
+                        json.dumps({
+                            "title": item.get("title", ""),
+                            "contents": item.get("contents", []),
+                            "comment": item.get("comment", ""),
+                        }, ensure_ascii=False, sort_keys=True)
+                        for item in monthly.get("performance", [])
+                    }
+                    imported = 0
+                    for source in previous_plans:
+                        signature = json.dumps({
+                            "title": source.get("title", ""),
+                            "contents": source.get("contents", []),
+                            "comment": source.get("comment", ""),
+                        }, ensure_ascii=False, sort_keys=True)
+                        if signature in existing:
+                            continue
+                        copied = copy.deepcopy(source)
+                        copied["rolled_from"] = previous_month_start.isoformat()
+                        monthly.setdefault("performance", []).append(copied)
+                        existing.add(signature)
+                        imported += 1
+                    save_monthly_data(monthly)
+                    st.toast(f"지난달 계획 {imported}건을 이번 달 실적으로 가져왔습니다.", icon="✅")
+                    st.rerun()
+        else:
+            st.info(f"{previous_month_start.month}월에 저장된 추진계획이 없습니다.")
+
+        st.divider()
+        st.markdown("#### 다음 달 보고서 미리 만들기")
+        st.caption("현재 추진계획으로 다음 달 추진실적을 미리 만들며, 현재 월간보고는 그대로 유지됩니다.")
         confirm = st.checkbox("다음 달로 이월하겠습니다.", key="monthly_rollover_confirm")
         if st.button(
             "추진계획을 다음 달 추진실적으로 이월",
@@ -358,11 +407,19 @@ def render_monthly_report():
             type="primary",
             use_container_width=True,
         ):
-            monthly["performance"] = copy.deepcopy(monthly.get("plan", []))
-            monthly["plan"] = []
-            monthly["month"] = 1 if int(monthly.get("month", 1)) == 12 else int(monthly.get("month", 1)) + 1
-            save_monthly_data(monthly)
-            st.toast("다음 달로 이월했습니다.", icon="✅")
+            next_month_start = (
+                datetime.date(current_month_start.year + 1, 1, 1)
+                if current_month_start.month == 12
+                else datetime.date(current_month_start.year, current_month_start.month + 1, 1)
+            )
+            next_monthly = {
+                "month": next_month_start.month,
+                "department": monthly.get("department", "AI혁신처"),
+                "performance": copy.deepcopy(monthly.get("plan", [])),
+                "plan": [],
+            }
+            save_state_for_period("monthly", next_month_start, next_monthly)
+            st.toast(f"{next_month_start.month}월 보고서를 미리 만들었습니다.", icon="✅")
             st.rerun()
 
 
