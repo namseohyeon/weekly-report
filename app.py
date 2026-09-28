@@ -5,6 +5,7 @@ import datetime
 import importlib
 import copy
 import html
+import uuid
 import streamlit.components.v1 as components
 import hwp_generator
 importlib.reload(hwp_generator)
@@ -71,7 +72,7 @@ def load_data():
     return load_state("weekly", DATA_FILE, [])
 
 def save_data(data):
-    save_state("weekly", data, DATA_FILE)
+    st.session_state["reports_data"] = save_state("weekly", data, DATA_FILE)
     # 입력 내용이 바뀌면 이전에 생성한 문서는 더 이상 최신 문서가 아니다.
     st.session_state.pop("generated_hwp", None)
     st.session_state.pop("generated_hwp_key", None)
@@ -120,7 +121,7 @@ def load_monthly_data():
 
 
 def save_monthly_data(data):
-    save_state("monthly", data, MONTHLY_DATA_FILE)
+    st.session_state["monthly_data"] = save_state("monthly", data, MONTHLY_DATA_FILE)
 
 
 def render_monthly_report():
@@ -172,7 +173,7 @@ def render_monthly_report():
                     elif not contents:
                         st.error("세부내용을 한 줄 이상 입력해 주세요.")
                     else:
-                        monthly[category].append({"title": title.strip(), "contents": contents, "comment": comment.strip()})
+                        monthly[category].append({"_id": uuid.uuid4().hex, "title": title.strip(), "contents": contents, "comment": comment.strip()})
                         save_monthly_data(monthly)
                         category_label = "추진실적" if category == "performance" else "추진계획"
                         st.toast(f"{category_label}을 추가했습니다.", icon="✅")
@@ -637,6 +638,7 @@ def render_rollover_controls():
                     target = current_by_team.get(team_name)
                     if target is None:
                         target = {"team_name": team_name, "this_week": [], "next_week": []}
+                        target["_id"] = uuid.uuid4().hex
                         st.session_state["reports_data"].append(target)
                         current_by_team[team_name] = target
                     existing = {
@@ -728,6 +730,7 @@ with tab2:
                 st.warning("이미 등록된 팀입니다.")
             else:
                 st.session_state["reports_data"].append({
+                    "_id": uuid.uuid4().hex,
                     "team_name": new_team_name,
                     "this_week": [],
                     "next_week": [],
@@ -802,6 +805,7 @@ with tab2:
                 else:
                     category_key = "this_week" if entry_category == "이번 주 실적" else "next_week"
                     selected_team_data[category_key].append({
+                        "_id": uuid.uuid4().hex,
                         "author": entry_author.strip(),
                         "title": entry_title.strip(),
                         "details": [line.strip() for line in entry_details.splitlines() if line.strip()],
