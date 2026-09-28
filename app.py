@@ -327,19 +327,21 @@ def render_monthly_report():
               </table>
             </div>
             <style>
-              .monthly-page {{ width: min(100%, 1120px); aspect-ratio: 297 / 210; min-height: 600px; margin: 20px auto 40px; padding: 10mm; box-sizing: border-box; background: white; color: #111; border: 1px solid #e2e2e2; box-shadow: 0 2px 12px rgba(0,0,0,.06); font-family: "한양중고딕", "HY중고딕", "Malgun Gothic", sans-serif; }}
+              .monthly-page {{ width: min(100%, 1120px); aspect-ratio: 297 / 210; min-height: 600px; margin: 20px auto 40px; padding: 10mm; box-sizing: border-box; background: white; color: #111; border: 1px solid #e2e2e2; box-shadow: 0 2px 12px rgba(0,0,0,.06); font-family: "휴먼명조", "Human MyungJo", "바탕", serif; }}
               .monthly-report-table {{ width: 100%; height: 100%; border-collapse: collapse; table-layout: fixed; }}
               .monthly-report-table th, .monthly-report-table td {{ border: 1px solid #222; }}
               .monthly-department-row {{ height: 3.4%; }}
-              .monthly-department-row th {{ border: 0; padding: 2px; text-align: center; font-size: 27px; font-weight: 700; }}
+              .monthly-department-row th {{ border: 0; padding: 2px; text-align: center; font-family: "HY헤드라인M" !important; font-size: 20pt; font-weight: 700; }}
               .monthly-period-row {{ height: 4.4%; }}
-              .monthly-period-row th {{ padding: 3px 5px; font-size: 21px; line-height: 1.5; text-align: left; }}
+              .monthly-period-row th {{ padding: 3px 5px; font-family: "HY헤드라인M" !important; font-size: 16pt; line-height: 1.5; text-align: left; }}
               .monthly-report-table tbody tr {{ height: 92.2%; }}
-              .monthly-report-table td {{ padding: 2px 3px; vertical-align: top; font-size: 17px; line-height: 1.55; }}
+              .monthly-report-table td {{ padding: 2px 3px; vertical-align: top; font-family: "휴먼명조", "바탕", serif !important; font-size: 13pt; line-height: 1.55; }}
               .monthly-entry + .monthly-entry {{ margin-top: 5pt; }}
-              .monthly-title {{ font-size: 20px; font-weight: 700; margin: 0 0 7px; padding-left: 1.8em; text-indent: calc(1mm - 1.8em); line-height: 1.45; }}
-              .monthly-item {{ font-size: 17px; margin: 3px 0 0; padding-left: calc(1mm + 4ch); text-indent: -4ch; line-height: 1.55; }}
-              .monthly-comment {{ min-height: 0; margin: 2px 0 0; padding-left: calc(1mm + 5ch); font-family: "한양중고딕", "HY중고딕", sans-serif; font-size: 10pt; line-height: 1.45; white-space: pre-wrap; }}
+              .monthly-title {{ font-family: "휴먼명조", "바탕", serif !important; font-size: 15pt; font-weight: 700; margin: 0 0 7px; padding-left: 1.8em; text-indent: calc(1mm - 1.8em); line-height: 1.45; }}
+              .monthly-report-table tbody td:first-child .monthly-title {{ letter-spacing: -.04em; }}
+              .monthly-report-table tbody td:last-child .monthly-title {{ letter-spacing: -.09em; }}
+              .monthly-item {{ font-family: "휴먼명조", "바탕", serif !important; font-size: 13pt; letter-spacing: -.01em; margin: 3px 0 0; padding-left: calc(1mm + 4ch); text-indent: -4ch; line-height: 1.55; }}
+              .monthly-comment {{ min-height: 0; margin: 2px 0 0; padding-left: calc(1mm + 5ch); font-family: "휴먼명조", "바탕", serif !important; font-size: 10pt; letter-spacing: -.01em; line-height: 1.45; white-space: pre-wrap; }}
               .monthly-comment:empty {{ display: none; }}
               .monthly-empty {{ color: #555; }}
               @media (max-width: 700px) {{ .monthly-page {{ aspect-ratio: auto; min-height: 520px; padding: 12px; }} .monthly-department-row th {{ font-size: 18px; }} .monthly-period-row th {{ font-size: 14px; }} .monthly-report-table td {{ font-size: 14px; }} .monthly-title {{ font-size: 16px; }} .monthly-item {{ margin-left: 10px; font-size: 14px; }} }}
